@@ -81,6 +81,15 @@ config :ueberauth, Ueberauth.Strategy.Google.OAuth,
   client_id: System.get_env("GOOGLE_CLIENT_ID"),
   client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
 
+# Configure OAuth2 for HubSpot
+config :oauth2, :hubspot_provider,
+  strategy: :auth_code,
+  client_id: System.get_env("HUBSPOT_CLIENT_ID"),
+  client_secret: System.get_env("HUBSPOT_CLIENT_SECRET"),
+  authorize_url: "https://app.hubspot.com/oauth/authorize",
+  token_url: "https://api.hubapi.com/oauth/v1/token",
+  redirect_uri: "http://localhost:4000/hubspot/callback"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

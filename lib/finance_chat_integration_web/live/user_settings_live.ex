@@ -7,7 +7,9 @@ defmodule FinanceChatIntegrationWeb.UserSettingsLive do
     ~H"""
     <.header class="text-center">
       Account Settings
-      <:subtitle>Manage your account email address and password settings</:subtitle>
+      <:subtitle>
+        Manage your account email address, password settings, and connected services
+      </:subtitle>
     </.header>
 
     <div class="space-y-12 divide-y">
@@ -68,6 +70,49 @@ defmodule FinanceChatIntegrationWeb.UserSettingsLive do
             <.button phx-disable-with="Changing...">Change Password</.button>
           </:actions>
         </.simple_form>
+      </div>
+      <div>
+        <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Connected Services</h3>
+        <div class="bg-gray-50 rounded-lg p-6">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-medium text-gray-700">HubSpot CRM</h4>
+              <p class="text-sm text-gray-500">
+                Connect your HubSpot account to sync contacts and data
+              </p>
+            </div>
+            <div>
+              <%= if @current_user.hubspot_access_token do %>
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fill-rule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clip-rule="evenodd"
+                    >
+                    </path>
+                  </svg>
+                  Connected
+                </span>
+              <% else %>
+                <.link
+                  href={~p"/hubspot/connect"}
+                  class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                >
+                  <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fill-rule="evenodd"
+                      d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z"
+                      clip-rule="evenodd"
+                    >
+                    </path>
+                  </svg>
+                  Connect HubSpot
+                </.link>
+              <% end %>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     """

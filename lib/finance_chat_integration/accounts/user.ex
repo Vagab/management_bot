@@ -10,6 +10,9 @@ defmodule FinanceChatIntegration.Accounts.User do
     field :confirmed_at, :utc_datetime
     field :provider, :string
     field :provider_uid, :string
+    field :hubspot_access_token, :string
+    field :hubspot_refresh_token, :string
+    field :hubspot_token_expires_at, :naive_datetime
 
     timestamps(type: :utc_datetime)
   end
@@ -146,6 +149,19 @@ defmodule FinanceChatIntegration.Accounts.User do
     |> validate_required([:email, :provider, :provider_uid])
     |> unique_constraint(:email)
     |> unique_constraint([:provider, :provider_uid])
+  end
+
+  @doc """
+  A user changeset for linking a HubSpot account.
+  """
+  def hubspot_changeset(user, attrs) do
+    user
+    |> cast(attrs, [
+      :hubspot_access_token,
+      :hubspot_refresh_token,
+      :hubspot_token_expires_at
+    ])
+    |> validate_required([])
   end
 
   @doc """

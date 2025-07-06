@@ -388,4 +388,34 @@ defmodule FinanceChatIntegration.Accounts do
         |> Repo.insert()
     end
   end
+
+  @doc """
+  Links a HubSpot account to an existing user.
+
+  ## Examples
+
+      iex> link_hubspot_account(user, token)
+      {:ok, %User{}}
+
+  """
+  def link_hubspot_account(user, token) do
+    # The token struct has all the info we need
+    expires_at =
+      if token.expires_at do
+        DateTime.from_unix!(token.expires_at) |> DateTime.to_naive()
+      else
+        # Some flows might not return an expiry, handle gracefully
+        nil
+      end
+
+    changes = %{
+      hubspot_access_token: token.access_token,
+      hubspot_refresh_token: token.refresh_token,
+      hubspot_token_expires_at: expires_at
+    }
+
+    user
+    |> User.hubspot_changeset(changes)
+    |> Repo.update()
+  end
 end

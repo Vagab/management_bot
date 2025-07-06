@@ -31,6 +31,14 @@ defmodule FinanceChatIntegrationWeb.Router do
     get "/:provider/callback", AuthController, :callback
   end
 
+  # HubSpot OAuth routes
+  scope "/hubspot", FinanceChatIntegrationWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    get "/connect", HubspotController, :connect
+    get "/callback", HubspotController, :callback
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", FinanceChatIntegrationWeb do
   #   pipe_through :api
