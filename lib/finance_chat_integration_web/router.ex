@@ -23,6 +23,14 @@ defmodule FinanceChatIntegrationWeb.Router do
     get "/", PageController, :home
   end
 
+  # OAuth routes
+  scope "/auth", FinanceChatIntegrationWeb do
+    pipe_through :browser
+
+    get "/:provider", AuthController, :request
+    get "/:provider/callback", AuthController, :callback
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", FinanceChatIntegrationWeb do
   #   pipe_through :api

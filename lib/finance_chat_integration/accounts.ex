@@ -350,4 +350,42 @@ defmodule FinanceChatIntegration.Accounts do
       {:error, :user, changeset, _} -> {:error, changeset}
     end
   end
+
+  ## OAuth
+
+  @doc """
+  Finds or creates a user from OAuth data.
+
+  ## Examples
+
+      iex> find_or_create_by_oauth(auth)
+      {:ok, %User{}}
+
+  """
+  def find_or_create_by_oauth(auth) do
+    # The Ueberauth struct provides a standard way to access info
+    provider = to_string(auth.provider)
+    uid = to_string(auth.uid)
+    email = auth.info.email
+
+    # 1. Try to find the user by provider and UID
+    case Repo.get_by(User, provider: provider, provider_uid: uid) do
+      # 2. If found, we are done! Return the user.
+      %User{} = user ->
+        {:ok, user}
+
+      # 3. If not found, we create a new user.
+      nil ->
+        attrs = %{
+          email: email,
+          provider: provider,
+          provider_uid: uid
+        }
+
+        # 4. Use the new changeset to insert the user
+        %User{}
+        |> User.oauth_changeset(attrs)
+        |> Repo.insert()
+    end
+  end
 end

@@ -8,6 +8,8 @@ defmodule FinanceChatIntegration.Accounts.User do
     field :hashed_password, :string, redact: true
     field :current_password, :string, virtual: true, redact: true
     field :confirmed_at, :utc_datetime
+    field :provider, :string
+    field :provider_uid, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -51,14 +53,19 @@ defmodule FinanceChatIntegration.Accounts.User do
   end
 
   defp validate_password(changeset, opts) do
-    changeset
-    |> validate_required([:password])
-    |> validate_length(:password, min: 12, max: 72)
-    # Examples of additional password validation:
-    # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
-    # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
-    # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
-    |> maybe_hash_password(opts)
+    # Only validate password if one was provided OR if there's no provider yet
+    if get_field(changeset, :provider) == nil and get_change(changeset, :password) do
+      changeset
+      |> validate_required([:password])
+      |> validate_length(:password, min: 12, max: 72)
+      # Examples of additional password validation:
+      # |> validate_format(:password, ~r/[a-z]/, message: "at least one lower case character")
+      # |> validate_format(:password, ~r/[A-Z]/, message: "at least one upper case character")
+      # |> validate_format(:password, ~r/[!?@#$%^&*_0-9]/, message: "at least one digit or punctuation character")
+      |> maybe_hash_password(opts)
+    else
+      changeset
+    end
   end
 
   defp maybe_hash_password(changeset, opts) do
@@ -131,12 +138,26 @@ defmodule FinanceChatIntegration.Accounts.User do
   end
 
   @doc """
+  A user changeset for creating a user from OAuth data.
+  """
+  def oauth_changeset(user, attrs) do
+    user
+    |> cast(attrs, [:email, :provider, :provider_uid])
+    |> validate_required([:email, :provider, :provider_uid])
+    |> unique_constraint(:email)
+    |> unique_constraint([:provider, :provider_uid])
+  end
+
+  @doc """
   Verifies the password.
 
   If there is no user or the user doesn't have a password, we call
   `Bcrypt.no_user_verify/0` to avoid timing attacks.
   """
-  def valid_password?(%FinanceChatIntegration.Accounts.User{hashed_password: hashed_password}, password)
+  def valid_password?(
+        %FinanceChatIntegration.Accounts.User{hashed_password: hashed_password},
+        password
+      )
       when is_binary(hashed_password) and byte_size(password) > 0 do
     Bcrypt.verify_pass(password, hashed_password)
   end

@@ -72,7 +72,8 @@ defmodule FinanceChatIntegration.MixProject do
       {:pgvector, "~> 0.2"},
 
       # OpenAI integration
-      {:openai, "~> 0.6"}
+      {:openai, "~> 0.6"},
+      {:tidewave, "~> 0.1", only: :dev}
     ]
   end
 
