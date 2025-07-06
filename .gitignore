@@ -35,3 +35,4 @@ finance_chat_integration-*.tar
 npm-debug.log
 /assets/node_modules/
 
+.env
