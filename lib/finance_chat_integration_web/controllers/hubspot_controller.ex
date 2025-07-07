@@ -59,7 +59,7 @@ defmodule FinanceChatIntegrationWeb.HubspotController do
 
   defp process_token(conn, code) do
     try do
-      token = Hubspot.get_token!(code)
+      token = Jason.decode!(Hubspot.get_token!(code).access_token)
 
       {:ok, _user} = Accounts.link_hubspot_account(conn.assigns.current_user, token)
 

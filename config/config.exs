@@ -73,7 +73,7 @@ config :ueberauth, Ueberauth,
          default_scope:
            "email profile https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/calendar",
          access_type: "offline",
-         approval_prompt: "force"
+         prompt: "consent"
        ]}
   ]
 

@@ -398,19 +398,22 @@ defmodule FinanceChatIntegration.Accounts do
       {:ok, %User{}}
 
   """
-  def link_hubspot_account(user, token) do
+  def link_hubspot_account(user, %{
+        "expires_in" => expires_in,
+        "access_token" => access_token,
+        "refresh_token" => refresh_token
+      }) do
     # The token struct has all the info we need
     expires_at =
-      if token.expires_at do
-        DateTime.from_unix!(token.expires_at) |> DateTime.to_naive()
+      if expires_in do
+        DateTime.now!("Etc/UTC") |> DateTime.add(expires_in) |> DateTime.to_naive()
       else
-        # Some flows might not return an expiry, handle gracefully
         nil
       end
 
     changes = %{
-      hubspot_access_token: token.access_token,
-      hubspot_refresh_token: token.refresh_token,
+      hubspot_access_token: access_token,
+      hubspot_refresh_token: refresh_token,
       hubspot_token_expires_at: expires_at
     }
 
