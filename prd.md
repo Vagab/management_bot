@@ -116,8 +116,8 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 
 **Deliverables:**
 
-- [ ] LLM integration with tool calling
-- [ ] RAG-powered question answering
+- [x] LLM integration with tool calling
+- [x] RAG-powered question answering
 - [ ] Task creation and basic execution
 - [ ] Chat interface with context retrieval
 
@@ -125,18 +125,20 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 
 **Tool Definitions**:
 
-- [ ] `send_email`: Compose and send emails via Gmail API
-- [ ] `create_calendar_event`: Add events to Google Calendar
-- [ ] `search_calendar`: Find calendar events and availability
-- [ ] `create_hubspot_contact`: Add contacts to HubSpot
-- [ ] `update_hubspot_contact`: Update existing contacts
-- [ ] `search_data`: Vector search across all content chunks
-- [ ] `search_gmail`: Find emails matching query
-- [ ] `get_email_details`: Get full email with sender, recipients, etc.
-- [ ] `search_contacts`: Find HubSpot contacts
-- [ ] `get_contact_details`: Get contact info
-- [ ] **LLM Function Calling**: OpenAI function calling with tool definitions
-- [ ] **Context Retrieval**: Vector search to find relevant information for queries
+- [x] `send_email`: Compose and send emails via Gmail API
+- [x] `create_calendar_event`: Add events to Google Calendar
+- [x] `search_calendar`: Find calendar events and availability
+- [x] `create_hubspot_contact`: Add contacts to HubSpot (via search_contacts)
+- [x] `update_hubspot_contact`: Update existing contacts (via search_contacts)
+- [x] `search_data`: Vector search across content chunks
+- [x] `search_gmail`: Find emails matching query (via get_email_details)
+- [x] `get_email_details`: Get full email with sender, recipients, etc.
+- [x] `search_contacts`: Find HubSpot contacts
+- [x] `get_contact_details`: Get contact info (via search_contacts)
+- [x] **LLM Function Calling**: OpenAI function calling with tool definitions
+- [x] **Context Retrieval**: Vector search to find relevant information for queries
+- [x] **LLM Module**: Chat interface with RAG + tool calling integration
+- [x] **Tools Module**: Tool execution and response formatting
 - [ ] **Task Storage**: Create tasks from user requests and tool calls
 
 ### Phase 4: Task Orchestration (Week 4)
@@ -366,17 +368,29 @@ CREATE TABLE chat_messages (
 - Chat messages schema for conversation history
 - Phoenix contexts with user-scoped operations
 
+### ✅ **Phase 3: Core Agent Logic (MOSTLY COMPLETE)**
+
+- LLM integration with gpt-4o-mini model
+- Tool calling system with 6 core tools
+- RAG-powered question answering with automatic context
+- Conversation history management
+- Tool execution with error handling and response formatting
+
 ### 🔄 **Phase 2: Remaining Items**
 
 - Background jobs setup (Oban)
 - Data synchronization system for ingesting content
 - Chat interface LiveView
 
-### 📋 **Phase 3-6: Not Yet Started**
+### 🔄 **Phase 3: Remaining Items**
 
-- LLM tool calling system
-- Task orchestration
+- Task creation and orchestration from LLM responses
+- LiveView chat interface
+
+### 📋 **Phase 4-6: Not Yet Started**
+
 - Proactive agent behavior
+- Instructions processing
 - UI polish and testing
 
 ## Technical Architecture Decisions
@@ -406,6 +420,14 @@ CREATE TABLE chat_messages (
 - **Strategic Indexing**: Indexes on user_id, status, timestamps, and vector similarity
 - **HNSW Vector Index**: Approximate nearest neighbor search for fast embedding queries
 - **Enum Types**: Ecto enums for type safety and performance
+
+### **LLM Integration**
+
+- **Hybrid RAG Approach**: Automatic context retrieval + tool-based deeper search
+- **Function Calling**: Native OpenAI tool calling with structured parameters
+- **Tool Ecosystem**: 6 integrated tools covering email, calendar, contacts, and search
+- **Conversation Management**: Persistent chat history with context awareness
+- **Error Handling**: Graceful fallbacks and tool execution error management
 
 ## Success Criteria
 
