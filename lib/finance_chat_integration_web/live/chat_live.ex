@@ -39,8 +39,8 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
             |> assign(:message_input, "")
             |> assign(:progress_tool, nil)
 
-          # Send async message to handle LLM call
-          send(self(), {:process_message, message, user})
+          # Start async LLM processing
+          LLM.chat(message, user)
 
           {:noreply, socket}
 
@@ -83,10 +83,8 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
     end
   end
 
-  def handle_info({:process_message, message, user}, socket) do
-    # Call LLM in the background
-    {:ok, _response} = LLM.chat(message, user)
-
+  def handle_info({:llm_response, _response}, socket) do
+    user = socket.assigns.current_user
     # Refresh messages from database
     updated_messages = Chat.get_recent_messages(user.id, 20)
 
@@ -95,6 +93,16 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
       |> assign(:messages, updated_messages)
       |> assign(:loading, false)
       |> assign(:progress_tool, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:llm_error, reason}, socket) do
+    socket =
+      socket
+      |> assign(:loading, false)
+      |> assign(:progress_tool, nil)
+      |> put_flash(:error, "Error: #{inspect(reason)}")
 
     {:noreply, socket}
   end
@@ -201,15 +209,15 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
   defp message_style(:assistant), do: "bg-gray-100 text-gray-900 border border-gray-200 shadow-sm"
 
   defp tool_progress_message(nil), do: "Thinking..."
-  defp tool_progress_message("search_gmail"), do: "looking through emails..."
-  defp tool_progress_message("get_email_details"), do: "reading email details..."
-  defp tool_progress_message("send_email"), do: "sending an email..."
-  defp tool_progress_message("search_contacts"), do: "searching contacts..."
-  defp tool_progress_message("get_contact_details"), do: "getting contact details..."
-  defp tool_progress_message("create_hubspot_contact"), do: "creating contact..."
-  defp tool_progress_message("update_hubspot_contact"), do: "updating contact..."
-  defp tool_progress_message("search_calendar"), do: "checking calendar..."
-  defp tool_progress_message("create_calendar_event"), do: "creating calendar event..."
-  defp tool_progress_message("search_data"), do: "searching data..."
-  defp tool_progress_message(_), do: "working..."
+  defp tool_progress_message("search_gmail"), do: "Looking through emails..."
+  defp tool_progress_message("get_email_details"), do: "Reading email details..."
+  defp tool_progress_message("send_email"), do: "Sending an email..."
+  defp tool_progress_message("search_contacts"), do: "Searching contacts..."
+  defp tool_progress_message("get_contact_details"), do: "Getting contact details..."
+  defp tool_progress_message("create_hubspot_contact"), do: "Creating contact..."
+  defp tool_progress_message("update_hubspot_contact"), do: "Updating contact..."
+  defp tool_progress_message("search_calendar"), do: "Checking calendar..."
+  defp tool_progress_message("create_calendar_event"), do: "Creating calendar event..."
+  defp tool_progress_message("search_data"), do: "Searching data..."
+  defp tool_progress_message(_), do: "Working..."
 end
