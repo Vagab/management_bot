@@ -313,7 +313,10 @@ defmodule FinanceChatIntegration.Integrations do
 
       token ->
         if token_expired?(user.hubspot_token_expires_at) do
-          {:error, :token_expired}
+          case refresh_hubspot_token(user) do
+            {:ok, new_token} -> {:ok, new_token}
+            error -> error
+          end
         else
           {:ok, token}
         end
@@ -324,6 +327,55 @@ defmodule FinanceChatIntegration.Integrations do
 
   defp token_expired?(expires_at) do
     NaiveDateTime.compare(expires_at, NaiveDateTime.utc_now()) == :lt
+  end
+
+  def refresh_hubspot_token(user) do
+    if user.hubspot_refresh_token do
+      config = Application.fetch_env!(:oauth2, :hubspot_provider)
+
+      params = %{
+        grant_type: "refresh_token",
+        refresh_token: user.hubspot_refresh_token,
+        client_id: config[:client_id],
+        client_secret: config[:client_secret]
+      }
+
+      case Req.post(config[:token_url], form: params) do
+        {:ok, %{status: 200, body: response}} ->
+          # Update the user's tokens
+          expires_at =
+            if response["expires_in"] do
+              DateTime.utc_now()
+              |> DateTime.add(response["expires_in"], :second)
+              |> DateTime.to_naive()
+            else
+              nil
+            end
+
+          token_params = %{
+            hubspot_access_token: response["access_token"],
+            hubspot_token_expires_at: expires_at
+          }
+
+          # Update the user with new tokens
+          alias FinanceChatIntegration.Accounts
+
+          case Accounts.get_user!(user.id)
+               |> Accounts.User.hubspot_changeset(token_params)
+               |> FinanceChatIntegration.Repo.update() do
+            {:ok, _updated_user} -> {:ok, response["access_token"]}
+            error -> error
+          end
+
+        {:ok, %{status: status, body: error}} ->
+          {:error, %{status: status, error: error}}
+
+        {:error, reason} ->
+          {:error, reason}
+      end
+    else
+      {:error, :no_refresh_token}
+    end
   end
 
   defp refresh_google_token(user) do
