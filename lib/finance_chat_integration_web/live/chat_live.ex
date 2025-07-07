@@ -85,29 +85,18 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
 
   def handle_info({:process_message, message, user}, socket) do
     # Call LLM in the background
-    case LLM.chat(message, user) do
-      {:ok, _response} ->
-        # Refresh messages from database
-        updated_messages = Chat.get_recent_messages(user.id, 20)
+    {:ok, _response} = LLM.chat(message, user)
 
-        socket =
-          socket
-          |> assign(:messages, updated_messages)
-          |> assign(:loading, false)
-          |> assign(:progress_tool, nil)
+    # Refresh messages from database
+    updated_messages = Chat.get_recent_messages(user.id, 20)
 
-        {:noreply, socket}
+    socket =
+      socket
+      |> assign(:messages, updated_messages)
+      |> assign(:loading, false)
+      |> assign(:progress_tool, nil)
 
-      {:error, reason} ->
-        # Handle error - could add error flash here
-        socket =
-          socket
-          |> assign(:loading, false)
-          |> assign(:progress_tool, nil)
-          |> put_flash(:error, "Error: #{inspect(reason)}")
-
-        {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_info({:llm_tool_executing, tool_name}, socket) do

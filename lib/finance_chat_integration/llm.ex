@@ -121,19 +121,10 @@ defmodule FinanceChatIntegration.LLM do
     end)
   end
 
-  defp user_message(content), do: %{"role" => "user", "content" => content}
-
   defp call_llm_with_tools(messages) do
     Integrations.chat_completion(messages,
       model: @default_model,
       tools: Tools.tool_definitions(),
-      temperature: 0.7
-    )
-  end
-
-  defp call_llm(messages) do
-    Integrations.chat_completion(messages,
-      model: @default_model,
       temperature: 0.7
     )
   end
