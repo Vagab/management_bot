@@ -17,6 +17,9 @@ defmodule FinanceChatIntegration.Tools do
     [
       search_data_tool(),
       search_contacts_tool(),
+      get_contact_details_tool(),
+      create_hubspot_contact_tool(),
+      update_hubspot_contact_tool(),
       send_email_tool(),
       search_calendar_tool(),
       get_email_details_tool(),
@@ -31,6 +34,9 @@ defmodule FinanceChatIntegration.Tools do
     case tool_name do
       "search_data" -> execute_search_data(args, user)
       "search_contacts" -> execute_search_contacts(args, user)
+      "get_contact_details" -> execute_get_contact_details(args, user)
+      "create_hubspot_contact" -> execute_create_hubspot_contact(args, user)
+      "update_hubspot_contact" -> execute_update_hubspot_contact(args, user)
       "send_email" -> execute_send_email(args, user)
       "search_calendar" -> execute_search_calendar(args, user)
       "get_email_details" -> execute_get_email_details(args, user)
@@ -86,6 +92,102 @@ defmodule FinanceChatIntegration.Tools do
             }
           },
           "required" => ["query"]
+        }
+      }
+    }
+  end
+
+  defp get_contact_details_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "get_contact_details",
+        "description" => "Get detailed information about a specific contact from HubSpot",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "contact_id" => %{
+              "type" => "string",
+              "description" => "HubSpot contact ID"
+            }
+          },
+          "required" => ["contact_id"]
+        }
+      }
+    }
+  end
+
+  defp create_hubspot_contact_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "create_hubspot_contact",
+        "description" => "Create a new contact in HubSpot CRM",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "email" => %{
+              "type" => "string",
+              "description" => "Contact email address"
+            },
+            "first_name" => %{
+              "type" => "string",
+              "description" => "Contact first name"
+            },
+            "last_name" => %{
+              "type" => "string",
+              "description" => "Contact last name"
+            },
+            "company" => %{
+              "type" => "string",
+              "description" => "Contact company name"
+            },
+            "phone" => %{
+              "type" => "string",
+              "description" => "Contact phone number"
+            }
+          },
+          "required" => ["email"]
+        }
+      }
+    }
+  end
+
+  defp update_hubspot_contact_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "update_hubspot_contact",
+        "description" => "Update an existing contact in HubSpot CRM",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "contact_id" => %{
+              "type" => "string",
+              "description" => "HubSpot contact ID"
+            },
+            "email" => %{
+              "type" => "string",
+              "description" => "Contact email address"
+            },
+            "first_name" => %{
+              "type" => "string",
+              "description" => "Contact first name"
+            },
+            "last_name" => %{
+              "type" => "string",
+              "description" => "Contact last name"
+            },
+            "company" => %{
+              "type" => "string",
+              "description" => "Contact company name"
+            },
+            "phone" => %{
+              "type" => "string",
+              "description" => "Contact phone number"
+            }
+          },
+          "required" => ["contact_id"]
         }
       }
     }
@@ -250,6 +352,81 @@ defmodule FinanceChatIntegration.Tools do
 
       {:error, reason} ->
         {:error, "Contact search failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp execute_get_contact_details(args, user) do
+    contact_id = args["contact_id"]
+
+    case Integrations.fetch_hubspot_contacts(user, search: contact_id) do
+      {:ok, [contact | _]} ->
+        formatted_contact = format_contact(contact)
+
+        {:ok,
+         %{
+           "status" => "success",
+           "contact" => formatted_contact
+         }}
+
+      {:ok, []} ->
+        {:error, "Contact not found"}
+
+      {:error, reason} ->
+        {:error, "Failed to get contact details: #{inspect(reason)}"}
+    end
+  end
+
+  defp execute_create_hubspot_contact(args, user) do
+    contact_params =
+      %{
+        email: args["email"],
+        firstname: args["first_name"],
+        lastname: args["last_name"],
+        company: args["company"],
+        phone: args["phone"]
+      }
+      |> Enum.filter(fn {_key, value} -> value != nil end)
+      |> Enum.into(%{})
+
+    case Integrations.create_hubspot_contact(user, contact_params) do
+      {:ok, contact} ->
+        {:ok,
+         %{
+           "status" => "success",
+           "message" => "Contact created successfully",
+           "contact" => format_contact(contact)
+         }}
+
+      {:error, reason} ->
+        {:error, "Failed to create contact: #{inspect(reason)}"}
+    end
+  end
+
+  defp execute_update_hubspot_contact(args, user) do
+    contact_id = args["contact_id"]
+
+    update_params =
+      %{
+        email: args["email"],
+        firstname: args["first_name"],
+        lastname: args["last_name"],
+        company: args["company"],
+        phone: args["phone"]
+      }
+      |> Enum.filter(fn {_key, value} -> value != nil end)
+      |> Enum.into(%{})
+
+    case Integrations.update_hubspot_contact(user, contact_id, update_params) do
+      {:ok, contact} ->
+        {:ok,
+         %{
+           "status" => "success",
+           "message" => "Contact updated successfully",
+           "contact" => format_contact(contact)
+         }}
+
+      {:error, reason} ->
+        {:error, "Failed to update contact: #{inspect(reason)}"}
     end
   end
 

@@ -99,6 +99,33 @@ defmodule FinanceChatIntegration.Integrations.HubspotClient do
   end
 
   @doc """
+  Updates an existing contact in HubSpot.
+  """
+  def update_contact(access_token, contact_id, contact_params) do
+    url = "#{@hubspot_api_base}/crm/v3/objects/contacts/#{contact_id}"
+
+    headers = [
+      {"Authorization", "Bearer #{access_token}"},
+      {"Content-Type", "application/json"}
+    ]
+
+    body = %{
+      "properties" => build_contact_properties(contact_params)
+    }
+
+    case Req.patch(url, headers: headers, json: body) do
+      {:ok, %{status: 200, body: response}} ->
+        {:ok, parse_contact(response)}
+
+      {:ok, %{status: status, body: error}} ->
+        {:error, %{status: status, error: error}}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
   Creates a note for a contact.
   """
   def create_contact_note(access_token, contact_id, note_body) do
@@ -155,28 +182,36 @@ defmodule FinanceChatIntegration.Integrations.HubspotClient do
   defp build_contact_properties(params) do
     properties = %{}
 
-    properties =
-      if params[:email], do: Map.put(properties, "email", params[:email]), else: properties
+    # Handle both atom keys (from internal calls) and string keys (from tools)
+    email = params[:email] || params["email"]
+    first_name = params[:first_name] || params[:firstname] || params["firstname"]
+    last_name = params[:last_name] || params[:lastname] || params["lastname"]
+    company = params[:company] || params["company"]
+    phone = params[:phone] || params["phone"]
+    job_title = params[:job_title] || params["jobtitle"]
 
     properties =
-      if params[:first_name],
-        do: Map.put(properties, "firstname", params[:first_name]),
+      if email, do: Map.put(properties, "email", email), else: properties
+
+    properties =
+      if first_name,
+        do: Map.put(properties, "firstname", first_name),
         else: properties
 
     properties =
-      if params[:last_name],
-        do: Map.put(properties, "lastname", params[:last_name]),
+      if last_name,
+        do: Map.put(properties, "lastname", last_name),
         else: properties
 
     properties =
-      if params[:company], do: Map.put(properties, "company", params[:company]), else: properties
+      if company, do: Map.put(properties, "company", company), else: properties
 
     properties =
-      if params[:phone], do: Map.put(properties, "phone", params[:phone]), else: properties
+      if phone, do: Map.put(properties, "phone", phone), else: properties
 
     properties =
-      if params[:job_title],
-        do: Map.put(properties, "jobtitle", params[:job_title]),
+      if job_title,
+        do: Map.put(properties, "jobtitle", job_title),
         else: properties
 
     properties

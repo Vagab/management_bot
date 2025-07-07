@@ -368,29 +368,62 @@ CREATE TABLE chat_messages (
 - Chat messages schema for conversation history
 - Phoenix contexts with user-scoped operations
 
-### ✅ **Phase 3: Core Agent Logic (MOSTLY COMPLETE)**
+### ✅ **Phase 3: Core Agent Logic (COMPLETE)**
 
 - LLM integration with gpt-4o-mini model
-- Tool calling system with 6 core tools
+- Tool calling system with 9 core tools (search_gmail, get_email_details, send_email, search_contacts, get_contact_details, create_hubspot_contact, update_hubspot_contact, search_calendar, create_calendar_event, search_data)
 - RAG-powered question answering with automatic context
 - Conversation history management
 - Tool execution with error handling and response formatting
+- **Chat Interface**: Full LiveView implementation with real-time updates
+- **Recursive Tool Calling**: Up to 5 iterations with full conversation context preservation
+- **Progress Updates**: PubSub-based progress indicators during tool execution
+- **Enhanced UI**: Message deletion, auto-scroll, improved styling
+- **Structured Logging**: Comprehensive logging throughout LLM pipeline
+- **Async Processing**: Non-blocking LLM processing with PubSub notifications
 
 ### 🔄 **Phase 2: Remaining Items**
 
 - Background jobs setup (Oban)
 - Data synchronization system for ingesting content
-- Chat interface LiveView
 
-### 🔄 **Phase 3: Remaining Items**
+### ✅ **Phase 3: Core Agent Logic (COMPLETE)**
 
-- Task creation and orchestration from LLM responses
-- LiveView chat interface
+- LLM integration with gpt-4o-mini model
+- Tool calling system with 9 core tools
+- RAG-powered question answering with automatic context
+- Conversation history management
+- Tool execution with error handling and response formatting
+- **NEW**: Chat interface LiveView with real-time updates
+- **NEW**: Recursive tool calling (up to 5 iterations) with full context preservation
+- **NEW**: PubSub progress updates showing tool execution status
+- **NEW**: Message deletion functionality
+- **NEW**: Auto-scroll to bottom for new messages
+- **NEW**: Structured logging throughout LLM pipeline
+- **NEW**: Improved UI with better spacing, colors, and responsive design
 
-### 📋 **Phase 4-6: Not Yet Started**
+### 🔄 **Phase 4: Task Orchestration (NEXT PRIORITY)**
+
+**Deliverables:**
+
+- [ ] LLM-driven task management
+- [ ] Multi-step workflow execution
+- [ ] Task resumption on events
+- [ ] Event-driven task processing
+
+**Technical Requirements:**
+
+- [ ] **Task Creation**: Automatically create tasks from user requests
+- [ ] **Task Orchestration Logic**: LLM-driven task state management
+- [ ] **Event Processing**: GenServer to handle incoming events
+- [ ] **Task State Management**: Update task context and status based on LLM decisions
+- [ ] **Tool Execution**: Execute LLM-requested actions and update task state
+
+### 📋 **Phase 5-6: Future Work**
 
 - Proactive agent behavior
 - Instructions processing
+- Background data synchronization
 - UI polish and testing
 
 ## Technical Architecture Decisions
@@ -425,9 +458,13 @@ CREATE TABLE chat_messages (
 
 - **Hybrid RAG Approach**: Automatic context retrieval + tool-based deeper search
 - **Function Calling**: Native OpenAI tool calling with structured parameters
-- **Tool Ecosystem**: 6 integrated tools covering email, calendar, contacts, and search
+- **Tool Ecosystem**: 9 integrated tools covering email, calendar, contacts, and search
 - **Conversation Management**: Persistent chat history with context awareness
+- **Recursive Tool Calling**: Up to 5 iterations with full conversation context preservation
+- **Progress Tracking**: Real-time progress updates via PubSub during tool execution
+- **Structured Logging**: Comprehensive logging of LLM interactions and tool execution
 - **Error Handling**: Graceful fallbacks and tool execution error management
+- **Async Processing**: Non-blocking LLM processing with PubSub-based UI updates
 
 ## Success Criteria
 

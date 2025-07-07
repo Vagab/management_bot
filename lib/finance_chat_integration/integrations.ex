@@ -211,6 +211,19 @@ defmodule FinanceChatIntegration.Integrations do
   end
 
   @doc """
+  Updates an existing HubSpot contact.
+  """
+  def update_hubspot_contact(user, contact_id, contact_params) do
+    case get_hubspot_access_token(user) do
+      {:ok, token} ->
+        HubspotClient.update_contact(token, contact_id, contact_params)
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
   Creates a note for a HubSpot contact.
   """
   def create_hubspot_contact_note(user, contact_id, note_body) do
