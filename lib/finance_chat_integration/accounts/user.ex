@@ -19,6 +19,9 @@ defmodule FinanceChatIntegration.Accounts.User do
     field :google_token_scope, :string
 
     has_many :content_chunks, FinanceChatIntegration.Content.ContentChunk
+    has_many :tasks, FinanceChatIntegration.TaskManagement.Task
+    has_many :instructions, FinanceChatIntegration.Instructions.Instruction
+    has_many :chat_messages, FinanceChatIntegration.Chat.ChatMessage
 
     timestamps(type: :utc_datetime)
   end

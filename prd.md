@@ -95,9 +95,9 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 - **Database Tables**:
   - [x] `users`: OAuth tokens, settings
   - [x] `content_chunks`: All content (emails, contacts, calendar) with embeddings
-  - [ ] `tasks`: JSON state storage, status tracking
-  - [ ] `instructions`: Ongoing behavioral rules
-  - [ ] `chat_messages`: Conversation history
+  - [x] `tasks`: JSONB context storage, status tracking, user associations
+  - [x] `instructions`: Ongoing behavioral rules with user associations
+  - [x] `chat_messages`: Conversation history with user associations
 - **API Integrations**:
   - [x] Gmail API client using stored OAuth tokens
   - [x] Google Calendar API client
@@ -106,6 +106,10 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 - [x] **Vector Search System**: Pgvector integration with cosine similarity search
 - [x] **Content Chunk Schema**: Ecto schema with vector embedding support
 - [x] **Vector Search Module**: Functions for embedding generation and similarity search
+- [x] **Task Management System**: Schema with JSONB context for LLM execution traces
+- [x] **Instructions System**: Simple behavioral rules with user scoping
+- [x] **Chat System**: Message history with role-based conversation tracking
+- [x] **Phoenix Contexts**: Simplified, user-scoped context modules for all entities
 - [ ] **Background Jobs**: Oban jobs for data sync and embedding generation
 
 ### Phase 3: Core Agent Logic (Week 3)
@@ -251,7 +255,7 @@ CREATE INDEX content_chunks_user_id_source_index ON content_chunks (user_id, sou
 CREATE INDEX content_chunks_embedding_idx ON content_chunks USING hnsw (embedding vector_cosine_ops);
 ```
 
-### Tasks _(Not Yet Implemented)_
+### Tasks
 
 ```sql
 CREATE TABLE tasks (
@@ -265,7 +269,7 @@ CREATE TABLE tasks (
 );
 ```
 
-### Instructions _(Not Yet Implemented)_
+### Instructions
 
 ```sql
 CREATE TABLE instructions (
@@ -278,7 +282,7 @@ CREATE TABLE instructions (
 );
 ```
 
-### Chat Messages _(Not Yet Implemented)_
+### Chat Messages
 
 ```sql
 CREATE TABLE chat_messages (
@@ -357,6 +361,10 @@ CREATE TABLE chat_messages (
 - ContentChunk Ecto schema with embeddings
 - VectorSearch module with OpenAI integration
 - Vector storage, retrieval, and similarity search working
+- Tasks schema with JSONB context for LLM execution traces
+- Instructions schema for behavioral rules
+- Chat messages schema for conversation history
+- Phoenix contexts with user-scoped operations
 
 ### 🔄 **Phase 2: Remaining Items**
 
@@ -370,6 +378,34 @@ CREATE TABLE chat_messages (
 - Task orchestration
 - Proactive agent behavior
 - UI polish and testing
+
+## Technical Architecture Decisions
+
+### **Database Design**
+
+- **Unified Content Chunks**: All content (emails, contacts, calendar) stored in single table for semantic search
+- **JSONB Context**: Task context uses flexible JSONB for LLM-driven execution traces
+- **User Scoping**: All entities properly scoped to users with foreign key constraints
+- **Vector Search**: PostgreSQL pgvector with HNSW indexing for production-scale similarity search
+
+### **LLM-Driven Task Management**
+
+- **Dynamic Context**: Task context stores full execution history including tool calls and reasoning
+- **Flexible Structure**: No predefined workflow - LLM decides what steps to take based on context
+- **Resumable Tasks**: Tasks can pause and resume by examining their execution history
+- **Self-Documenting**: Full audit trail of LLM reasoning and actions
+
+### **Security & Isolation**
+
+- **User-Scoped Operations**: All database operations filtered by user_id
+- **CASCADE Deletes**: Clean up all user data when user is deleted
+- **OAuth Integration**: Secure token management for external APIs
+
+### **Performance Optimizations**
+
+- **Strategic Indexing**: Indexes on user_id, status, timestamps, and vector similarity
+- **HNSW Vector Index**: Approximate nearest neighbor search for fast embedding queries
+- **Enum Types**: Ecto enums for type safety and performance
 
 ## Success Criteria
 
