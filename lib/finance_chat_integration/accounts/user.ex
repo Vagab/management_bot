@@ -18,6 +18,8 @@ defmodule FinanceChatIntegration.Accounts.User do
     field :google_token_expires_at, :naive_datetime
     field :google_token_scope, :string
 
+    has_many :content_chunks, FinanceChatIntegration.Content.ContentChunk
+
     timestamps(type: :utc_datetime)
   end
 

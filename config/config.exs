@@ -8,6 +8,10 @@
 import Config
 
 config :finance_chat_integration,
+       FinanceChatIntegration.Repo,
+       types: FinanceChatIntegration.PostgrexTypes
+
+config :finance_chat_integration,
   ecto_repos: [FinanceChatIntegration.Repo],
   generators: [timestamp_type: :utc_datetime]
 
