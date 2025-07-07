@@ -39,8 +39,8 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
             |> assign(:message_input, "")
             |> assign(:progress_tool, nil)
 
-          # Start async LLM processing
-          LLM.chat(message, user)
+          # Send async message to handle LLM call
+          send(self(), {:process_message, message, user})
 
           {:noreply, socket}
 
@@ -83,28 +83,31 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
     end
   end
 
-  def handle_info({:llm_response, _response}, socket) do
-    user = socket.assigns.current_user
-    # Refresh messages from database
-    updated_messages = Chat.get_recent_messages(user.id, 20)
+  def handle_info({:process_message, message, user}, socket) do
+    # Call LLM in the background
+    case LLM.chat(message, user) do
+      {:ok, _response} ->
+        # Refresh messages from database
+        updated_messages = Chat.get_recent_messages(user.id, 20)
 
-    socket =
-      socket
-      |> assign(:messages, updated_messages)
-      |> assign(:loading, false)
-      |> assign(:progress_tool, nil)
+        socket =
+          socket
+          |> assign(:messages, updated_messages)
+          |> assign(:loading, false)
+          |> assign(:progress_tool, nil)
 
-    {:noreply, socket}
-  end
+        {:noreply, socket}
 
-  def handle_info({:llm_error, reason}, socket) do
-    socket =
-      socket
-      |> assign(:loading, false)
-      |> assign(:progress_tool, nil)
-      |> put_flash(:error, "Error: #{inspect(reason)}")
+      {:error, reason} ->
+        # Handle error - could add error flash here
+        socket =
+          socket
+          |> assign(:loading, false)
+          |> assign(:progress_tool, nil)
+          |> put_flash(:error, "Error: #{inspect(reason)}")
 
-    {:noreply, socket}
+        {:noreply, socket}
+    end
   end
 
   def handle_info({:llm_tool_executing, tool_name}, socket) do

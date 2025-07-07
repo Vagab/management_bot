@@ -25,7 +25,7 @@ defmodule FinanceChatIntegration.LLM do
       case chat_async(message, user) do
         {:ok, final_response} ->
           # Save conversation to database
-          save_conversation(user, message, final_response)
+          save_conversation(user, final_response)
 
           # Publish final result
           Phoenix.PubSub.broadcast(
@@ -58,20 +58,6 @@ defmodule FinanceChatIntegration.LLM do
     end
   end
 
-  @doc """
-  Simple chat without tool calling (for testing or simpler interactions).
-  """
-  def simple_chat(message, user) do
-    with {:ok, messages} <- build_simple_context(message, user),
-         {:ok, response} <- call_llm(messages) do
-      content = get_content_from_response(response)
-      save_conversation(user, message, content)
-      {:ok, content}
-    else
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
   # Private Functions
 
   defp build_conversation_context(message, user) do
@@ -86,22 +72,6 @@ defmodule FinanceChatIntegration.LLM do
       [
         system_message_with_context(rag_context),
         conversation_history_to_messages(recent_messages)
-      ]
-      |> List.flatten()
-
-    {:ok, messages}
-  end
-
-  defp build_simple_context(message, user) do
-    # Simpler context without tools
-    recent_messages = Chat.get_recent_messages(user.id, 5)
-    rag_context = get_rag_context(message, user.id)
-
-    messages =
-      [
-        simple_system_message_with_context(rag_context),
-        conversation_history_to_messages(recent_messages),
-        user_message(message)
       ]
       |> List.flatten()
 
@@ -126,20 +96,6 @@ defmodule FinanceChatIntegration.LLM do
     You can use the available tools to search for more information, send emails, schedule meetings, and manage contacts. Always be helpful, professional, and accurate. When referencing information from the user's data, mention the source (email, contact, calendar).
 
     If you need to perform actions like sending emails or scheduling meetings, use the appropriate tools. Always confirm important actions before executing them.
-    """
-
-    %{"role" => "system", "content" => content}
-  end
-
-  defp simple_system_message_with_context(rag_context) do
-    context_text = format_rag_context(rag_context)
-
-    content = """
-    You are a helpful AI assistant for a financial advisor.
-
-    #{if context_text != "", do: "Relevant context from user's data:\n#{context_text}\n", else: ""}
-
-    Answer the user's question based on the available context. Be helpful, professional, and accurate. When referencing information, mention the source.
     """
 
     %{"role" => "system", "content" => content}
@@ -268,14 +224,7 @@ defmodule FinanceChatIntegration.LLM do
       "I apologize, but I couldn't generate a proper response."
   end
 
-  defp save_conversation(user, user_message, assistant_response) do
-    # Save user message
-    Chat.create_chat_message(%{
-      user_id: user.id,
-      role: :user,
-      content: user_message
-    })
-
+  defp save_conversation(user, assistant_response) do
     # Save assistant response
     Chat.create_chat_message(%{
       user_id: user.id,
@@ -292,19 +241,5 @@ defmodule FinanceChatIntegration.LLM do
       {:ok, embedding} -> {:ok, embedding}
       {:error, reason} -> {:error, reason}
     end
-  end
-
-  @doc """
-  Test function to verify LLM integration without tools.
-  """
-  def test_simple_response(user) do
-    simple_chat("Hello, can you help me with my schedule?", user)
-  end
-
-  @doc """
-  Test function to verify tool calling works.
-  """
-  def test_tool_calling(user) do
-    chat("Who mentioned baseball in my emails?", user)
   end
 end
