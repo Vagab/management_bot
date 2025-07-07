@@ -97,7 +97,8 @@ config :oauth2, :hubspot_provider,
 # Configure OpenAI API
 config :openai,
   api_key: System.get_env("OPENAI_API_KEY"),
-  organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk"
+  organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk",
+  http_options: [recv_timeout: :infinity]
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

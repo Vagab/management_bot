@@ -371,8 +371,6 @@ defmodule FinanceChatIntegration.Tools do
     Enum.map(contacts, &format_contact/1)
   end
 
-  defp format_contacts(_), do: []
-
   defp format_contact(contact) do
     %{
       "id" => contact["id"],

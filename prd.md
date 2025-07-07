@@ -69,7 +69,7 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 
 - [x] Phoenix app configured with required dependencies
 - [x] PostgreSQL with pgvector extension
-- [ ] Basic LiveView chat interface
+- [x] Basic LiveView chat interface
 - [x] Google OAuth implementation (Gmail + Calendar scopes)
 - [x] HubSpot OAuth implementation
 - [x] User authentication and session management
@@ -79,7 +79,7 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 - [x] Add dependencies: `ueberauth`, `ueberauth_google`, `pgvector`, `openai_ex`, `req`
 - [x] Configure OAuth redirect URIs
 - [x] Create user schema with OAuth token storage
-- [ ] Basic chat LiveView with message input/display
+- [x] Basic chat LiveView with message input/display
 
 ### Phase 2: Data Integration & RAG (Week 2)
 
@@ -119,7 +119,7 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 - [x] LLM integration with tool calling
 - [x] RAG-powered question answering
 - [ ] Task creation and basic execution
-- [ ] Chat interface with context retrieval
+- [x] Chat interface with context retrieval
 
 **Technical Requirements:**
 

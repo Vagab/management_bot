@@ -230,7 +230,7 @@ defmodule FinanceChatIntegration.LLM do
   end
 
   defp get_content_from_response(response) do
-    get_in(response, ["choices", Access.at(0), "message", "content"]) ||
+    get_in(response, [:choices, Access.at(0), "message", "content"]) ||
       "I apologize, but I couldn't generate a proper response."
   end
 

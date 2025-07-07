@@ -40,6 +40,16 @@ defmodule FinanceChatIntegration.Chat do
   end
 
   @doc """
+  Deletes a specific chat message for a user.
+  """
+  def delete_chat_message(message_id, user_id) do
+    case Repo.get_by(ChatMessage, id: message_id, user_id: user_id) do
+      nil -> {:error, :not_found}
+      message -> Repo.delete(message)
+    end
+  end
+
+  @doc """
   Deletes all chat messages for a user.
   """
   def delete_chat_history(user_id) do
