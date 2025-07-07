@@ -17,13 +17,41 @@ defmodule FinanceChatIntegration.LLM do
 
   @doc """
   Main chat interface that handles user messages with RAG and tool calling.
+  Now runs asynchronously and publishes results via PubSub.
   """
   def chat(message, user) do
+    # Spawn async task for LLM processing
+    Task.start(fn ->
+      case chat_async(message, user) do
+        {:ok, final_response} ->
+          # Save conversation to database
+          save_conversation(user, message, final_response)
+
+          # Publish final result
+          Phoenix.PubSub.broadcast(
+            FinanceChatIntegration.PubSub,
+            "chat:#{user.id}",
+            {:llm_response, final_response}
+          )
+
+        {:error, reason} ->
+          # Publish error
+          Phoenix.PubSub.broadcast(
+            FinanceChatIntegration.PubSub,
+            "chat:#{user.id}",
+            {:llm_error, reason}
+          )
+      end
+    end)
+
+    {:ok, :async}
+  end
+
+  # Synchronous version of chat for internal use.
+  defp chat_async(message, user) do
     with {:ok, messages} <- build_conversation_context(message, user),
          {:ok, response} <- call_llm_with_tools(messages),
          {:ok, final_response} <- process_llm_response(response, user) do
-      # Save conversation to database
-      save_conversation(user, message, final_response)
       {:ok, final_response}
     else
       {:error, reason} -> {:error, reason}
@@ -57,8 +85,7 @@ defmodule FinanceChatIntegration.LLM do
     messages =
       [
         system_message_with_context(rag_context),
-        conversation_history_to_messages(recent_messages),
-        user_message(message)
+        conversation_history_to_messages(recent_messages)
       ]
       |> List.flatten()
 
@@ -202,6 +229,13 @@ defmodule FinanceChatIntegration.LLM do
       tool_id = tool_call["id"]
       function_name = get_in(tool_call, ["function", "name"])
       arguments_json = get_in(tool_call, ["function", "arguments"])
+
+      # Broadcast progress update
+      Phoenix.PubSub.broadcast(
+        FinanceChatIntegration.PubSub,
+        "chat:#{user.id}",
+        {:llm_tool_executing, function_name}
+      )
 
       # Parse arguments
       arguments =

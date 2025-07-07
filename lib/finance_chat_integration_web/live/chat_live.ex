@@ -7,11 +7,15 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
     user = socket.assigns.current_user
     messages = Chat.get_recent_messages(user.id, 20)
 
+    # Subscribe to PubSub for progress updates
+    Phoenix.PubSub.subscribe(FinanceChatIntegration.PubSub, "chat:#{user.id}")
+
     {:ok,
      socket
      |> assign(:messages, messages)
      |> assign(:message_input, "")
-     |> assign(:loading, false)}
+     |> assign(:loading, false)
+     |> assign(:progress_tool, nil)}
   end
 
   def handle_event("send_message", %{"message" => message}, socket) do
@@ -33,9 +37,10 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
             |> assign(:messages, updated_messages)
             |> assign(:loading, true)
             |> assign(:message_input, "")
+            |> assign(:progress_tool, nil)
 
-          # Send async message to handle LLM call
-          send(self(), {:process_message, message, user})
+          # Start async LLM processing
+          LLM.chat(message, user)
 
           {:noreply, socket}
 
@@ -78,29 +83,32 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
     end
   end
 
-  def handle_info({:process_message, message, user}, socket) do
-    # Call LLM in the background
-    case LLM.chat(message, user) do
-      {:ok, _response} ->
-        # Refresh messages from database
-        updated_messages = Chat.get_recent_messages(user.id, 20)
+  def handle_info({:llm_response, _response}, socket) do
+    user = socket.assigns.current_user
+    # Refresh messages from database
+    updated_messages = Chat.get_recent_messages(user.id, 20)
 
-        socket =
-          socket
-          |> assign(:messages, updated_messages)
-          |> assign(:loading, false)
+    socket =
+      socket
+      |> assign(:messages, updated_messages)
+      |> assign(:loading, false)
+      |> assign(:progress_tool, nil)
 
-        {:noreply, socket}
+    {:noreply, socket}
+  end
 
-      {:error, reason} ->
-        # Handle error - could add error flash here
-        socket =
-          socket
-          |> assign(:loading, false)
-          |> put_flash(:error, "Error: #{inspect(reason)}")
+  def handle_info({:llm_error, reason}, socket) do
+    socket =
+      socket
+      |> assign(:loading, false)
+      |> assign(:progress_tool, nil)
+      |> put_flash(:error, "Error: #{inspect(reason)}")
 
-        {:noreply, socket}
-    end
+    {:noreply, socket}
+  end
+
+  def handle_info({:llm_tool_executing, tool_name}, socket) do
+    {:noreply, assign(socket, :progress_tool, tool_name)}
   end
 
   def render(assigns) do
@@ -156,7 +164,7 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
                     >
                     </div>
                   </div>
-                  <span class="ml-2">Thinking...</span>
+                  <span class="ml-2">{tool_progress_message(@progress_tool)}</span>
                 </div>
               </div>
             </div>
@@ -199,4 +207,17 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
 
   defp message_style(:user), do: "bg-blue-500 text-white shadow-md"
   defp message_style(:assistant), do: "bg-gray-100 text-gray-900 border border-gray-200 shadow-sm"
+
+  defp tool_progress_message(nil), do: "Thinking..."
+  defp tool_progress_message("search_gmail"), do: "looking through emails..."
+  defp tool_progress_message("get_email_details"), do: "reading email details..."
+  defp tool_progress_message("send_email"), do: "sending an email..."
+  defp tool_progress_message("search_contacts"), do: "searching contacts..."
+  defp tool_progress_message("get_contact_details"), do: "getting contact details..."
+  defp tool_progress_message("create_hubspot_contact"), do: "creating contact..."
+  defp tool_progress_message("update_hubspot_contact"), do: "updating contact..."
+  defp tool_progress_message("search_calendar"), do: "checking calendar..."
+  defp tool_progress_message("create_calendar_event"), do: "creating calendar event..."
+  defp tool_progress_message("search_data"), do: "searching data..."
+  defp tool_progress_message(_), do: "working..."
 end
