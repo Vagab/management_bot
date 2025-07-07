@@ -90,6 +90,11 @@ config :oauth2, :hubspot_provider,
   token_url: "https://api.hubapi.com/oauth/v1/token",
   redirect_uri: "http://localhost:4000/hubspot/callback"
 
+# Configure OpenAI API
+config :openai,
+  api_key: System.get_env("OPENAI_API_KEY"),
+  organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk"
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

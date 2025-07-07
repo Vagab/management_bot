@@ -10,6 +10,18 @@ defmodule FinanceChatIntegrationWeb.AuthController do
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
     case Accounts.find_or_create_by_oauth(auth) do
       {:ok, user} ->
+        # Store Google OAuth tokens if this is a Google OAuth login
+        user =
+          if auth.provider == :google and auth.credentials do
+            case Accounts.link_google_account(user, auth.credentials) do
+              {:ok, updated_user} -> updated_user
+              # Continue with original user if token storage fails
+              {:error, _} -> user
+            end
+          else
+            user
+          end
+
         conn
         # Using the function from phx.gen.auth
         |> UserAuth.log_in_user(user)

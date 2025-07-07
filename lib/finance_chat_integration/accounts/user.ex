@@ -13,6 +13,10 @@ defmodule FinanceChatIntegration.Accounts.User do
     field :hubspot_access_token, :string
     field :hubspot_refresh_token, :string
     field :hubspot_token_expires_at, :naive_datetime
+    field :google_access_token, :string
+    field :google_refresh_token, :string
+    field :google_token_expires_at, :naive_datetime
+    field :google_token_scope, :string
 
     timestamps(type: :utc_datetime)
   end
@@ -160,6 +164,20 @@ defmodule FinanceChatIntegration.Accounts.User do
       :hubspot_access_token,
       :hubspot_refresh_token,
       :hubspot_token_expires_at
+    ])
+    |> validate_required([])
+  end
+
+  @doc """
+  A user changeset for linking a Google account.
+  """
+  def google_changeset(user, attrs) do
+    user
+    |> cast(attrs, [
+      :google_access_token,
+      :google_refresh_token,
+      :google_token_expires_at,
+      :google_token_scope
     ])
     |> validate_required([])
   end

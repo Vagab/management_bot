@@ -418,4 +418,40 @@ defmodule FinanceChatIntegration.Accounts do
     |> User.hubspot_changeset(changes)
     |> Repo.update()
   end
+
+  @doc """
+  Links a Google account to an existing user.
+
+  ## Examples
+
+      iex> link_google_account(user, token)
+      {:ok, %User{}}
+
+  """
+  def link_google_account(user, token) do
+    expires_at =
+      if token.expires_at do
+        DateTime.from_unix!(token.expires_at) |> DateTime.to_naive()
+      else
+        # Calculate expiry based on expires_in seconds
+        if token.expires_in do
+          DateTime.utc_now()
+          |> DateTime.add(token.expires_in, :second)
+          |> DateTime.to_naive()
+        else
+          nil
+        end
+      end
+
+    changes = %{
+      google_access_token: token.access_token,
+      google_refresh_token: token.refresh_token,
+      google_token_expires_at: expires_at,
+      google_token_scope: token.other_params["scope"]
+    }
+
+    user
+    |> User.google_changeset(changes)
+    |> Repo.update()
+  end
 end
