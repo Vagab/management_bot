@@ -444,10 +444,10 @@ defmodule FinanceChatIntegration.Accounts do
       end
 
     changes = %{
-      google_access_token: token.access_token,
+      google_access_token: token.token,
       google_refresh_token: token.refresh_token,
       google_token_expires_at: expires_at,
-      google_token_scope: token.other_params["scope"]
+      google_token_scope: Enum.join(token.scopes, " ")
     }
 
     user
