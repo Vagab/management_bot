@@ -10,10 +10,12 @@ defmodule FinanceChatIntegration.LLM do
   """
 
   alias FinanceChatIntegration.{Integrations, Tools, Content.VectorSearch, Chat}
+  require Logger
 
   @default_model "gpt-4o-mini"
   @max_context_chunks 3
   @max_conversation_history 10
+  @max_tool_iterations 5
 
   @doc """
   Main chat interface that handles user messages with RAG and tool calling.
@@ -22,8 +24,12 @@ defmodule FinanceChatIntegration.LLM do
   def chat(message, user) do
     # Spawn async task for LLM processing
     Task.start(fn ->
+      Logger.info("Starting LLM chat processing for user #{user.id}")
+
       case chat_async(message, user) do
         {:ok, final_response} ->
+          Logger.info("LLM chat completed successfully for user #{user.id}")
+
           # Save conversation to database
           save_conversation(user, final_response)
 
@@ -35,6 +41,8 @@ defmodule FinanceChatIntegration.LLM do
           )
 
         {:error, reason} ->
+          Logger.error("LLM chat failed for user #{user.id}: #{inspect(reason)}")
+
           # Publish error
           Phoenix.PubSub.broadcast(
             FinanceChatIntegration.PubSub,
@@ -50,8 +58,7 @@ defmodule FinanceChatIntegration.LLM do
   # Synchronous version of chat for internal use.
   defp chat_async(message, user) do
     with {:ok, messages} <- build_conversation_context(message, user),
-         {:ok, response} <- call_llm_with_tools(messages),
-         {:ok, final_response} <- process_llm_response(response, user) do
+         {:ok, final_response} <- process_llm_with_tools(messages, user, 0) do
       {:ok, final_response}
     else
       {:error, reason} -> {:error, reason}
@@ -129,46 +136,67 @@ defmodule FinanceChatIntegration.LLM do
     )
   end
 
-  defp process_llm_response(response, user) do
+  # New recursive function that handles tool calling with limits
+  defp process_llm_with_tools(_messages, user, iteration)
+       when iteration >= @max_tool_iterations do
+    Logger.warning(
+      "Maximum tool iterations (#{@max_tool_iterations}) reached for user #{user.id}"
+    )
+
+    {:error, "Maximum tool calling iterations reached"}
+  end
+
+  defp process_llm_with_tools(messages, user, iteration) do
+    Logger.info("LLM iteration #{iteration} for user #{user.id}")
+
+    case call_llm_with_tools(messages) do
+      {:ok, response} ->
+        process_llm_response(response, messages, user, iteration)
+
+      {:error, reason} ->
+        Logger.error("LLM call failed at iteration #{iteration}: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp process_llm_response(response, conversation_messages, user, iteration) do
     [choice | _] = response[:choices]
     message = choice["message"]
 
     cond do
       # LLM wants to call tools
       tool_calls = get_in(message, ["tool_calls"]) ->
-        execute_tools_and_continue(tool_calls, message, user)
+        Logger.info("LLM requesting #{length(tool_calls)} tool calls at iteration #{iteration}")
+        execute_tools_and_continue(tool_calls, message, conversation_messages, user, iteration)
 
       # LLM provided a direct response
       content = get_in(message, ["content"]) ->
+        Logger.info("LLM provided final response at iteration #{iteration}")
         {:ok, content}
 
       true ->
+        Logger.error("Invalid LLM response format at iteration #{iteration}")
         {:error, "Invalid LLM response format"}
     end
   end
 
-  defp execute_tools_and_continue(tool_calls, assistant_message, user) do
+  defp execute_tools_and_continue(
+         tool_calls,
+         assistant_message,
+         conversation_messages,
+         user,
+         iteration
+       ) do
     # Execute all tool calls
     tool_results = execute_tool_calls(tool_calls, user)
 
-    # Build messages for the next LLM call
-    messages =
-      [
-        assistant_message,
-        tool_results
-      ]
-      |> List.flatten()
+    # Build messages for the next LLM call - KEEP FULL CONVERSATION CONTEXT
+    updated_messages =
+      conversation_messages ++
+        [assistant_message | tool_results]
 
-    # Call LLM again with tool results
-    case call_llm_with_tools(messages) do
-      {:ok, response} ->
-        # Get the final response content
-        final_content = get_content_from_response(response)
-        {:ok, final_content}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    # Recursively call LLM with updated conversation context
+    process_llm_with_tools(updated_messages, user, iteration + 1)
   end
 
   defp execute_tool_calls(tool_calls, user) do
@@ -177,7 +205,9 @@ defmodule FinanceChatIntegration.LLM do
       function_name = get_in(tool_call, ["function", "name"])
       arguments_json = get_in(tool_call, ["function", "arguments"])
 
-      # Broadcast progress update
+      # Log and broadcast progress update
+      Logger.info("Executing tool: #{function_name} for user #{user.id}")
+
       Phoenix.PubSub.broadcast(
         FinanceChatIntegration.PubSub,
         "chat:#{user.id}",
@@ -195,9 +225,11 @@ defmodule FinanceChatIntegration.LLM do
       result =
         case Tools.execute_tool(function_name, arguments, user) do
           {:ok, result} ->
+            Logger.info("Tool #{function_name} executed successfully for user #{user.id}")
             Jason.encode!(result)
 
           {:error, error} ->
+            Logger.error("Tool #{function_name} failed for user #{user.id}: #{inspect(error)}")
             Jason.encode!(%{"error" => error})
         end
 
@@ -208,11 +240,6 @@ defmodule FinanceChatIntegration.LLM do
         "content" => result
       }
     end)
-  end
-
-  defp get_content_from_response(response) do
-    get_in(response, [:choices, Access.at(0), "message", "content"]) ||
-      "I apologize, but I couldn't generate a proper response."
   end
 
   defp save_conversation(user, assistant_response) do
