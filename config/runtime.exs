@@ -16,6 +16,26 @@ import Config
 #
 # Alternatively, you can use `mix phx.gen.release` to generate a `bin/server`
 # script that automatically sets the env var above.
+
+config :ueberauth, Ueberauth.Strategy.Google.OAuth,
+  client_id: System.get_env("GOOGLE_CLIENT_ID"),
+  client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
+
+# Configure OAuth2 for HubSpot
+config :oauth2, :hubspot_provider,
+  strategy: :auth_code,
+  client_id: System.get_env("HUBSPOT_CLIENT_ID"),
+  client_secret: System.get_env("HUBSPOT_CLIENT_SECRET"),
+  authorize_url: "https://app.hubspot.com/oauth/authorize",
+  token_url: "https://api.hubapi.com/oauth/v1/token",
+  redirect_uri: "https://#{System.get_env("PHX_HOST")}/hubspot/callback"
+
+# Configure OpenAI API
+config :openai,
+  api_key: System.get_env("OPENAI_API_KEY"),
+  organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk",
+  http_options: [recv_timeout: :infinity]
+
 if System.get_env("PHX_SERVER") do
   config :finance_chat_integration, FinanceChatIntegrationWeb.Endpoint, server: true
 end

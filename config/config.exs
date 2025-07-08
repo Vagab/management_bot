@@ -17,7 +17,7 @@ config :finance_chat_integration,
 
 # Configures the endpoint
 config :finance_chat_integration, FinanceChatIntegrationWeb.Endpoint,
-  url: [host: "localhost"],
+  url: [host: System.get_env("PHX_HOST")],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [
@@ -65,9 +65,6 @@ config :logger, :console,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-# Use Jason for JSON parsing in Phoenix
-config :phoenix, :json_library, Jason
-
 # Configure Ueberauth for OAuth
 config :ueberauth, Ueberauth,
   providers: [
@@ -81,24 +78,8 @@ config :ueberauth, Ueberauth,
        ]}
   ]
 
-config :ueberauth, Ueberauth.Strategy.Google.OAuth,
-  client_id: System.get_env("GOOGLE_CLIENT_ID"),
-  client_secret: System.get_env("GOOGLE_CLIENT_SECRET")
-
-# Configure OAuth2 for HubSpot
-config :oauth2, :hubspot_provider,
-  strategy: :auth_code,
-  client_id: System.get_env("HUBSPOT_CLIENT_ID"),
-  client_secret: System.get_env("HUBSPOT_CLIENT_SECRET"),
-  authorize_url: "https://app.hubspot.com/oauth/authorize",
-  token_url: "https://api.hubapi.com/oauth/v1/token",
-  redirect_uri: "http://localhost:4000/hubspot/callback"
-
-# Configure OpenAI API
-config :openai,
-  api_key: System.get_env("OPENAI_API_KEY"),
-  organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk",
-  http_options: [recv_timeout: :infinity]
+# Use Jason for JSON parsing in Phoenix
+config :phoenix, :json_library, Jason
 
 # Configure Oban for background jobs
 config :finance_chat_integration, Oban,
@@ -107,8 +88,8 @@ config :finance_chat_integration, Oban,
     Oban.Plugins.Pruner,
     {Oban.Plugins.Cron,
      crontab: [
-       # Run task orchestration every 5 minutes for all users
-       {"*/5 * * * *", FinanceChatIntegration.Workers.TaskOrchestrator}
+       # Run task orchestration every hour for all users
+       {"0 * * * *", FinanceChatIntegration.Workers.TaskOrchestrator}
      ]}
   ],
   queues: [

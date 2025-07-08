@@ -8,7 +8,7 @@ defmodule FinanceChatIntegration.Tools do
   - Error handling and response formatting
   """
 
-  alias FinanceChatIntegration.{Integrations, Content.VectorSearch, TaskManagement}
+  alias FinanceChatIntegration.{Integrations, Content.VectorSearch, TaskManagement, Instructions}
 
   @doc """
   Returns the list of available tool definitions for OpenAI function calling.
@@ -26,7 +26,10 @@ defmodule FinanceChatIntegration.Tools do
       create_calendar_event_tool(),
       create_task_tool(),
       update_task_status_tool(),
-      update_task_context_tool()
+      update_task_context_tool(),
+      create_instruction_tool(),
+      list_instructions_tool(),
+      delete_instruction_tool()
     ]
   end
 
@@ -47,6 +50,9 @@ defmodule FinanceChatIntegration.Tools do
       "create_task" -> execute_create_task(args, user)
       "update_task_status" -> execute_update_task_status(args, user)
       "update_task_context" -> execute_update_task_context(args, user)
+      "create_instruction" -> execute_create_instruction(args, user)
+      "list_instructions" -> execute_list_instructions(args, user)
+      "delete_instruction" -> execute_delete_instruction(args, user)
       _ -> {:error, "Unknown tool: #{tool_name}"}
     end
   end
@@ -709,6 +715,131 @@ defmodule FinanceChatIntegration.Tools do
 
           {:error, changeset} ->
             {:error, "Failed to update task context: #{inspect(changeset.errors)}"}
+        end
+    end
+  end
+
+  # Instruction tools
+
+  defp create_instruction_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "create_instruction",
+        "description" =>
+          "Create a persistent instruction that guides the AI's behavior and can trigger tasks",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "description" => %{
+              "type" => "string",
+              "description" => "The instruction text that describes the desired behavior"
+            }
+          },
+          "required" => ["description"]
+        }
+      }
+    }
+  end
+
+  defp list_instructions_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "list_instructions",
+        "description" => "List all active instructions for the user",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{},
+          "required" => []
+        }
+      }
+    }
+  end
+
+  defp delete_instruction_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "delete_instruction",
+        "description" => "Delete an instruction by ID",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "instruction_id" => %{
+              "type" => "integer",
+              "description" => "The ID of the instruction to delete"
+            }
+          },
+          "required" => ["instruction_id"]
+        }
+      }
+    }
+  end
+
+  # Instruction execution functions
+
+  defp execute_create_instruction(args, user) do
+    description = args["description"]
+
+    case Instructions.create_instruction(%{
+           description: description,
+           user_id: user.id
+         }) do
+      {:ok, instruction} ->
+        {:ok,
+         %{
+           "success" => true,
+           "message" => "Instruction created successfully",
+           "instruction" => %{
+             "id" => instruction.id,
+             "description" => instruction.description,
+             "created_at" => instruction.inserted_at
+           }
+         }}
+
+      {:error, changeset} ->
+        {:error, "Failed to create instruction: #{inspect(changeset.errors)}"}
+    end
+  end
+
+  defp execute_list_instructions(_args, user) do
+    instructions = Instructions.list_instructions(user.id)
+
+    formatted_instructions =
+      Enum.map(instructions, fn instruction ->
+        %{
+          "id" => instruction.id,
+          "description" => instruction.description,
+          "created_at" => instruction.inserted_at
+        }
+      end)
+
+    {:ok,
+     %{
+       "instructions" => formatted_instructions,
+       "count" => length(formatted_instructions)
+     }}
+  end
+
+  defp execute_delete_instruction(args, user) do
+    instruction_id = args["instruction_id"]
+
+    case Instructions.get_instruction(user.id, instruction_id) do
+      nil ->
+        {:error, "Instruction not found"}
+
+      instruction ->
+        case Instructions.delete_instruction(instruction) do
+          {:ok, _} ->
+            {:ok,
+             %{
+               "success" => true,
+               "message" => "Instruction deleted successfully"
+             }}
+
+          {:error, changeset} ->
+            {:error, "Failed to delete instruction: #{inspect(changeset.errors)}"}
         end
     end
   end

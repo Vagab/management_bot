@@ -15,7 +15,9 @@ defmodule FinanceChatIntegration.Repo.Migrations.CreateContentChunks do
     create index(:content_chunks, [:source])
     create index(:content_chunks, [:user_id, :source])
 
+    execute "ALTER EXTENSION vector UPDATE"
+    execute "SET vector.pgvector_compatibility = on"
     # Vector similarity search index using HNSW algorithm
-    execute "CREATE INDEX content_chunks_embedding_idx ON content_chunks USING hnsw (embedding vector_cosine_ops)"
+    execute "CREATE INDEX content_chunks_embedding_idx ON content_chunks USING hnsw (embedding vector_l2_ops)"
   end
 end

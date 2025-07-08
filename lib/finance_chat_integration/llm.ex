@@ -9,7 +9,7 @@ defmodule FinanceChatIntegration.LLM do
   - Error handling and fallbacks
   """
 
-  alias FinanceChatIntegration.{Integrations, Tools, Content.VectorSearch, Chat}
+  alias FinanceChatIntegration.{Integrations, Tools, Content.VectorSearch, Chat, Instructions}
   require Logger
 
   @default_model "gpt-4o-mini"
@@ -75,9 +75,11 @@ defmodule FinanceChatIntegration.LLM do
     rag_context = get_rag_context(message, user.id)
 
     # 3. Build message array for OpenAI
+    user_instructions = get_user_instructions(user.id)
+
     messages =
       [
-        system_message_with_context(rag_context),
+        system_message_with_context(rag_context, user_instructions),
         conversation_history_to_messages(recent_messages)
       ]
       |> List.flatten()
@@ -92,13 +94,20 @@ defmodule FinanceChatIntegration.LLM do
     end
   end
 
-  defp system_message_with_context(rag_context) do
+  defp get_user_instructions(user_id) do
+    Instructions.list_instructions(user_id)
+  end
+
+  defp system_message_with_context(rag_context, user_instructions) do
     context_text = format_rag_context(rag_context)
+    instructions_text = format_user_instructions(user_instructions)
 
     content = """
     You are a helpful AI assistant for a financial advisor. You have access to the user's emails, contacts, and calendar data.
 
     #{if context_text != "", do: "Relevant context from user's data:\n#{context_text}\n", else: ""}
+
+    #{if instructions_text != "", do: "User Instructions (follow these behavioral guidelines):\n#{instructions_text}\n", else: ""}
 
     You can use the available tools to search for more information, send emails, schedule meetings, and manage contacts. Always be helpful, professional, and accurate. When referencing information from the user's data, mention the source (email, contact, calendar).
 
@@ -109,6 +118,8 @@ defmodule FinanceChatIntegration.LLM do
     - "Send welcome email to new leads" - CREATE TASK (ongoing instruction)
 
     If your workflow has "and then" steps that depend on external responses or future timing, use create_task FIRST, then execute the immediate actions.
+
+    If the user asks you to remember something or follow a specific behavioral pattern, you can create an instruction using the create_instruction tool.
 
     Always confirm important actions before executing them.
     """
@@ -122,7 +133,18 @@ defmodule FinanceChatIntegration.LLM do
     results
     |> Enum.with_index(1)
     |> Enum.map(fn {result, index} ->
-      "#{index}. [#{result.source}] #{result.content} (similarity: #{result.similarity})"
+      "#{index}. [#{result.source}] #{result.content} (#{result.timestamp})"
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_user_instructions([]), do: ""
+
+  defp format_user_instructions(instructions) do
+    instructions
+    |> Enum.with_index(1)
+    |> Enum.map(fn {instruction, index} ->
+      "#{index}. #{instruction.description}"
     end)
     |> Enum.join("\n")
   end

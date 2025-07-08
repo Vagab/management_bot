@@ -14,7 +14,9 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
     Integrations,
     TaskManagement,
     Accounts,
-    LLM
+    LLM,
+    Content.VectorSearch,
+    Instructions
   }
 
   require Logger
@@ -27,11 +29,251 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
 
     Enum.each(users, fn user ->
       Logger.info("Processing tasks for user #{user.id}")
+
+      # First sync recent emails and contacts to RAG system
+      sync_recent_emails(user)
+      sync_hubspot_contacts(user)
+
+      # Process instructions against new events
+      process_instructions(user)
+
+      # Then orchestrate tasks
       orchestrate_tasks(user)
     end)
 
     Logger.info("Completed task orchestration for #{length(users)} users")
     :ok
+  end
+
+  defp sync_recent_emails(user) do
+    Logger.info("Syncing recent emails for user #{user.id}")
+
+    # Get emails from last 24 hours
+    twenty_four_hours_ago = DateTime.utc_now() |> DateTime.add(-24, :hour)
+    query = "after:#{DateTime.to_unix(twenty_four_hours_ago)}"
+
+    case Integrations.fetch_emails(user, query: query, limit: 50) do
+      {:ok, emails} ->
+        Logger.info("Found #{length(emails)} recent emails for user #{user.id}")
+
+        Enum.each(emails, fn email ->
+          # Check if email already exists to avoid duplicates
+          if not email_already_stored?(email, user.id) do
+            # Create content chunk for each email
+            content = format_email_for_rag(email)
+
+            attrs = %{
+              content: content,
+              source: "gmail",
+              user_id: user.id
+            }
+
+            case VectorSearch.create_chunk_with_embedding(attrs) do
+              {:ok, _chunk} ->
+                Logger.debug("Created content chunk for email: #{email.subject}")
+
+              {:error, reason} ->
+                Logger.warning(
+                  "Failed to create content chunk for email #{email.subject}: #{inspect(reason)}"
+                )
+            end
+          end
+        end)
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch emails for user #{user.id}: #{inspect(reason)}")
+    end
+  end
+
+  defp format_email_for_rag(email) do
+    """
+    Subject: #{email.subject}
+    From: #{email.from}
+    Date: #{email.date}
+
+    #{email.body}
+    """
+  end
+
+  defp email_already_stored?(email, user_id) do
+    # Simple check - if content with same subject and from exists
+    import Ecto.Query
+    alias FinanceChatIntegration.{Content.ContentChunk, Repo}
+
+    query =
+      from c in ContentChunk,
+        where: c.user_id == ^user_id,
+        where: c.source == "gmail",
+        where:
+          fragment("? LIKE ?", c.content, ^"%Subject: #{email.subject}%From: #{email.from}%"),
+        limit: 1
+
+    Repo.exists?(query)
+  end
+
+  defp sync_hubspot_contacts(user) do
+    Logger.info("Syncing HubSpot contacts for user #{user.id}")
+
+    case Integrations.fetch_hubspot_contacts(user, limit: 100) do
+      {:ok, contacts} ->
+        Logger.info("Found #{length(contacts)} HubSpot contacts for user #{user.id}")
+
+        Enum.each(contacts, fn contact ->
+          # Check if contact already exists
+          if not contact_already_stored?(contact, user.id) do
+            content = format_contact_for_rag(contact)
+
+            attrs = %{
+              content: content,
+              source: "hubspot",
+              user_id: user.id
+            }
+
+            case VectorSearch.create_chunk_with_embedding(attrs) do
+              {:ok, _chunk} ->
+                Logger.debug("Created content chunk for contact: #{contact.email}")
+
+              {:error, reason} ->
+                Logger.warning(
+                  "Failed to create content chunk for contact #{contact.email}: #{inspect(reason)}"
+                )
+            end
+          end
+        end)
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch HubSpot contacts for user #{user.id}: #{inspect(reason)}")
+    end
+  end
+
+  defp format_contact_for_rag(contact) do
+    """
+    Contact: #{contact.first_name} #{contact.last_name}
+    Email: #{contact.email}
+    Company: #{contact.company}
+    Phone: #{contact.phone}
+    Job Title: #{contact.job_title}
+    Lifecycle Stage: #{contact.lifecycle_stage}
+    """
+  end
+
+  defp contact_already_stored?(contact, user_id) do
+    # Simple check - if content with same email exists
+    import Ecto.Query
+    alias FinanceChatIntegration.{Content.ContentChunk, Repo}
+
+    query =
+      from c in ContentChunk,
+        where: c.user_id == ^user_id,
+        where: c.source == "hubspot",
+        where: fragment("? LIKE ?", c.content, ^"%Email: #{contact.email}%"),
+        limit: 1
+
+    Repo.exists?(query)
+  end
+
+  @doc """
+  Manual sync function for testing - can be called from IEx
+  """
+  def sync_user_data(user_id) do
+    try do
+      user = Accounts.get_user!(user_id)
+      Logger.info("Manual sync started for user #{user.id}")
+      sync_recent_emails(user)
+      sync_hubspot_contacts(user)
+      process_instructions(user)
+      Logger.info("Manual sync completed for user #{user.id}")
+      :ok
+    rescue
+      Ecto.NoResultsError ->
+        {:error, :user_not_found}
+    end
+  end
+
+  defp process_instructions(user) do
+    Logger.info("Processing instructions for user #{user.id}")
+
+    # Get user's active instructions
+    instructions = Instructions.list_instructions(user.id)
+
+    if length(instructions) > 0 do
+      # Get recent events (emails from last hour)
+      one_hour_ago = DateTime.utc_now() |> DateTime.add(-1, :hour)
+
+      case fetch_recent_emails(user, one_hour_ago) do
+        {:ok, recent_emails} when recent_emails != [] ->
+          Logger.info(
+            "Found #{length(recent_emails)} recent emails to evaluate against #{length(instructions)} instructions"
+          )
+
+          # Ask LLM to evaluate instructions against events
+          evaluate_instructions_against_events(user, instructions, recent_emails)
+
+        {:ok, []} ->
+          Logger.debug("No recent emails found for instruction processing")
+      end
+    else
+      Logger.debug("No instructions found for user #{user.id}")
+    end
+  end
+
+  defp evaluate_instructions_against_events(user, instructions, recent_emails) do
+    instructions_text = format_instructions_for_llm(instructions)
+    events_text = format_events_for_llm(recent_emails)
+
+    prompt = """
+    You are evaluating user instructions against recent events to determine if any tasks should be created.
+
+    User Instructions:
+    #{instructions_text}
+
+    Recent Events:
+    #{events_text}
+
+    For each instruction, determine if any of the recent events should trigger task creation. If so, create appropriate tasks using the create_task tool.
+
+    Examples:
+    - If instruction is "Follow up with new leads within 24 hours" and there's a new email from a potential client, create a follow-up task
+    - If instruction is "Schedule meetings with clients who request them" and there's an email asking for a meeting, create a scheduling task
+    - If instruction is "Send welcome emails to new contacts" and there's a new contact, create an email task
+
+    Only create tasks if there's a clear match between an instruction and an event. Be selective and purposeful.
+    """
+
+    messages = [
+      %{
+        "role" => "system",
+        "content" =>
+          "You are a task orchestrator that evaluates instructions against events to create tasks automatically."
+      },
+      %{"role" => "user", "content" => prompt}
+    ]
+
+    case LLM.process_with_tools(messages, user, temperature: 0.3) do
+      {:ok, _response} ->
+        Logger.info("Instruction evaluation completed for user #{user.id}")
+
+      {:error, reason} ->
+        Logger.warning("Failed to evaluate instructions for user #{user.id}: #{inspect(reason)}")
+    end
+  end
+
+  defp format_instructions_for_llm(instructions) do
+    instructions
+    |> Enum.with_index(1)
+    |> Enum.map(fn {instruction, index} ->
+      "#{index}. #{instruction.description}"
+    end)
+    |> Enum.join("\n")
+  end
+
+  defp format_events_for_llm(emails) do
+    emails
+    |> Enum.with_index(1)
+    |> Enum.map(fn {email, index} ->
+      "#{index}. EMAIL - From: #{email.from}, Subject: #{email.subject}, Date: #{email.date}"
+    end)
+    |> Enum.join("\n")
   end
 
   defp orchestrate_tasks(user) do
