@@ -283,6 +283,15 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
         "Starting LLM processing for user #{user.id} with context: #{inspect_context_summary(context)}"
       )
 
+      # Log the actual prompt being sent to LLM
+      user_message = Enum.find(messages, fn msg -> msg["role"] == "user" end)
+
+      if user_message do
+        Logger.info("=== ORCHESTRATION PROMPT ===")
+        Logger.info(user_message["content"])
+        Logger.info("=== END PROMPT ===")
+      end
+
       case LLM.process_with_tools(messages, user, temperature: 0.3) do
         {:ok, final_response} ->
           Logger.info("Task orchestration completed for user #{user.id}")
@@ -320,8 +329,8 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
 
     context = %{
       current_time: DateTime.utc_now(),
-      active_tasks: format_tasks_for_llm(active_tasks),
-      waiting_tasks: format_tasks_for_llm(waiting_tasks),
+      active_tasks: active_tasks,
+      waiting_tasks: waiting_tasks,
       new_emails: format_emails_for_llm(new_emails),
       user_id: user.id
     }
@@ -367,24 +376,29 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
     New emails received in last 15 minutes:
     #{format_emails_list(context.new_emails)}
 
-    IMPORTANT: Review each task and determine its current state:
+    CRITICAL TASK REVIEW PROCESS:
 
-    1. For ACTIVE tasks - check if they are actually finished:
-       - If the task objective has been met, use update_task_status to mark it as "completed"
-       - If work is still needed, continue with the next step
-       - If waiting for external response, change status to "waiting"
+    FOR EACH TASK LISTED ABOVE, YOU MUST:
 
-    2. For WAITING tasks - check if they can now proceed:
-       - Review new emails to see if any are responses to waiting tasks
-       - If a relevant response is found, resume the task and take appropriate action
-       - If still waiting, leave status as "waiting"
+    1. READ the task description carefully
+    2. CHECK if the task objective has already been completed based on:
+       - The task description
+       - Any context information provided
+       - Recent emails that might indicate completion
+    3. TAKE ACTION immediately:
+       - If task is DONE: Use update_task_status to mark as "completed"
+       - If task needs work: Execute the required actions using available tools
+       - If waiting for response: Change status to "waiting"
 
-    3. ALWAYS update task status when appropriate:
-       - Use update_task_status with "completed" when task objectives are fully met
-       - Use update_task_context to record what was accomplished
-       - Don't leave completed tasks in "in_progress" status
+    MANDATORY ACTIONS FOR EACH ACTIVE TASK:
+    - If task says "Send email to X" → Send the email, then mark COMPLETED
+    - If task says "Schedule meeting" → Create calendar event, then mark COMPLETED
+    - If task says "Create contact" → Create the contact, then mark COMPLETED
+    - If task says "Follow up" → Send follow-up email, then mark COMPLETED
 
-    Remember: A task should be marked "completed" as soon as its description/objective is fulfilled.
+    YOU MUST PROCESS EVERY SINGLE TASK LISTED. Do not ignore any tasks.
+
+    COMPLETION CRITERIA: A task is complete when its stated objective is achieved. Be decisive!
     """
   end
 
@@ -446,19 +460,6 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
 
   # Formatting helpers
 
-  defp format_tasks_for_llm(tasks) do
-    Enum.map(tasks, fn task ->
-      %{
-        id: task.id,
-        description: task.description,
-        status: task.status,
-        context: task.context,
-        created_at: task.inserted_at,
-        updated_at: task.updated_at
-      }
-    end)
-  end
-
   defp format_emails_for_llm(emails) do
     Enum.map(emails, fn email ->
       %{
@@ -477,9 +478,33 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
   defp format_tasks_list(tasks) do
     tasks
     |> Enum.map(fn task ->
-      "- Task ##{task.id}: #{task.description} (#{task.status})"
+      context_info =
+        if task.context && map_size(task.context) > 0 do
+          "\n  Context: #{inspect(task.context)}"
+        else
+          ""
+        end
+
+      time_info = format_task_time_elapsed(task.inserted_at)
+
+      "- Task ##{task.id}: #{task.description}
+  Status: #{task.status}
+  Created: #{time_info}#{context_info}
+
+  ACTION REQUIRED: Review if this task objective has been completed and update status accordingly."
     end)
-    |> Enum.join("\n")
+    |> Enum.join("\n\n")
+  end
+
+  defp format_task_time_elapsed(datetime) do
+    now = DateTime.utc_now()
+    diff = DateTime.diff(now, datetime, :minute)
+
+    cond do
+      diff < 60 -> "#{diff} minutes ago"
+      diff < 1440 -> "#{div(diff, 60)} hours ago"
+      true -> "#{div(diff, 1440)} days ago"
+    end
   end
 
   defp format_emails_list([]), do: "No new emails"
