@@ -118,7 +118,7 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 
 - [x] LLM integration with tool calling
 - [x] RAG-powered question answering
-- [ ] Task creation and basic execution
+- [x] Task creation and basic execution
 - [x] Chat interface with context retrieval
 
 **Technical Requirements:**
@@ -139,47 +139,34 @@ Build an AI agent for Financial Advisors that integrates with Gmail, Google Cale
 - [x] **Context Retrieval**: Vector search to find relevant information for queries
 - [x] **LLM Module**: Chat interface with RAG + tool calling integration
 - [x] **Tools Module**: Tool execution and response formatting
-- [ ] **Task Storage**: Create tasks from user requests and tool calls
+- [x] **Task Storage**: Create tasks from user requests and tool calls
 
-### Phase 4: Task Orchestration (Week 4)
+### ✅ **Phase 4: Task Orchestration (COMPLETE)**
 
 **Deliverables:**
 
-- [ ] LLM-driven task management
-- [ ] Multi-step workflow execution
-- [ ] Task resumption on events
-- [ ] Event-driven task processing
+- [x] LLM-driven task management
+- [x] Multi-step workflow execution
+- [x] Task resumption on events
+- [x] Event-driven task processing
 
 **Technical Requirements:**
 
-- [ ] **Task Orchestration Logic**:
-
-  ```elixir
-  # Pseudo-code for task orchestration
-  def process_event(event) do
-    active_tasks = get_active_tasks()
-
-    prompt = """
-    Current active tasks: #{format_tasks(active_tasks)}
-    New event: #{event}
-
-    Which tasks should I work on? What actions should I take?
-    Available tools: #{list_available_tools()}
-    """
-
-    llm_response = call_llm_with_tools(prompt)
-    execute_actions(llm_response)
-  end
-  ```
-
-- [ ] **Event Processing**: GenServer to handle incoming events
-- [ ] **Task State Management**: Update task context and status based on LLM decisions
-- [ ] **Tool Execution**: Execute LLM-requested actions and update task state
+- [x] **Task Orchestration Logic**: Cron-based orchestrator using LLM.process_with_tools for recursive tool calling
+- [x] **Event Processing**: Hourly cron job processes all users and collects new emails, active tasks
+- [x] **Task State Management**: Update task context and status based on LLM decisions
+- [x] **Tool Execution**: Execute LLM-requested actions and update task state
+- [x] **Task Creation Tool**: `create_task` tool for workflows that cannot be completed immediately
+- [x] **Task Management Tools**: `update_task_status` and `update_task_context` tools
+- [x] **Recursive Tool Calling**: Reuses LLM.chat recursive logic for up to 5 iterations
+- [x] **Oban Background Jobs**: Configured with cron plugin for automated task orchestration
+- [x] **Enhanced Prompts**: Clear guidance for LLM on task completion and status management
 
 ### Phase 5: Proactive Agent (Week 5)
 
 **Deliverables:**
 
+- [ ] Improve RAG system. It doesn't really seem to work I think? Maybe test first
 - [ ] Polling system for external APIs
 - [ ] Instruction processing system
 - [ ] Automated task creation from instructions
@@ -371,7 +358,7 @@ CREATE TABLE chat_messages (
 ### ✅ **Phase 3: Core Agent Logic (COMPLETE)**
 
 - LLM integration with gpt-4o-mini model
-- Tool calling system with 9 core tools (search_gmail, get_email_details, send_email, search_contacts, get_contact_details, create_hubspot_contact, update_hubspot_contact, search_calendar, create_calendar_event, search_data)
+- Tool calling system with 12 core tools (search_gmail, get_email_details, send_email, search_contacts, get_contact_details, create_hubspot_contact, update_hubspot_contact, search_calendar, create_calendar_event, search_data, create_task, update_task_status, update_task_context)
 - RAG-powered question answering with automatic context
 - Conversation history management
 - Tool execution with error handling and response formatting
@@ -402,22 +389,24 @@ CREATE TABLE chat_messages (
 - **NEW**: Structured logging throughout LLM pipeline
 - **NEW**: Improved UI with better spacing, colors, and responsive design
 
-### 🔄 **Phase 4: Task Orchestration (NEXT PRIORITY)**
+### ✅ **Phase 4: Task Orchestration (COMPLETE)**
 
 **Deliverables:**
 
-- [ ] LLM-driven task management
-- [ ] Multi-step workflow execution
-- [ ] Task resumption on events
-- [ ] Event-driven task processing
+- [x] LLM-driven task management
+- [x] Multi-step workflow execution
+- [x] Task resumption on events
+- [x] Event-driven task processing
 
 **Technical Requirements:**
 
-- [ ] **Task Creation**: Automatically create tasks from user requests
-- [ ] **Task Orchestration Logic**: LLM-driven task state management
-- [ ] **Event Processing**: GenServer to handle incoming events
-- [ ] **Task State Management**: Update task context and status based on LLM decisions
-- [ ] **Tool Execution**: Execute LLM-requested actions and update task state
+- [x] **Task Creation**: `create_task` tool automatically creates tasks from user requests
+- [x] **Task Orchestration Logic**: Cron-based LLM-driven task state management
+- [x] **Event Processing**: Hourly orchestration with email polling and context collection
+- [x] **Task State Management**: `update_task_status` and `update_task_context` tools
+- [x] **Tool Execution**: Recursive tool calling with full context preservation
+- [x] **Oban Integration**: Background job processing with cron scheduling
+- [x] **Task Completion**: Enhanced prompts ensure tasks are properly marked complete
 
 ### 📋 **Phase 5-6: Future Work**
 
@@ -458,7 +447,7 @@ CREATE TABLE chat_messages (
 
 - **Hybrid RAG Approach**: Automatic context retrieval + tool-based deeper search
 - **Function Calling**: Native OpenAI tool calling with structured parameters
-- **Tool Ecosystem**: 9 integrated tools covering email, calendar, contacts, and search
+- **Tool Ecosystem**: 12 integrated tools covering email, calendar, contacts, search, and task management
 - **Conversation Management**: Persistent chat history with context awareness
 - **Recursive Tool Calling**: Up to 5 iterations with full conversation context preservation
 - **Progress Tracking**: Real-time progress updates via PubSub during tool execution
@@ -468,13 +457,14 @@ CREATE TABLE chat_messages (
 
 ## Success Criteria
 
-- User can authenticate with Google and HubSpot
-- Agent can answer questions about clients using RAG
-- Agent can execute multi-step tasks autonomously
-- Agent can handle ongoing instructions and proactive behavior
-- Tasks can wait for responses and resume when events occur
-- Simple, functional chat interface
-- All integrations working with polling-based updates
+- [x] User can authenticate with Google and HubSpot
+- [x] Agent can answer questions about clients using RAG
+- [x] Agent can execute multi-step tasks autonomously
+- [x] Agent can create, manage, and complete tasks automatically
+- [x] Tasks can be resumed and processed based on events (emails, time)
+- [x] Simple, functional chat interface with real-time updates
+- [ ] Agent can handle ongoing instructions and proactive behavior (Phase 5)
+- [x] Task orchestration working with cron-based polling
 
 ## Constraints
 
