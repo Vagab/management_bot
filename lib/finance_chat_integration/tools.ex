@@ -13,13 +13,9 @@ defmodule FinanceChatIntegration.Tools do
   @doc """
   Returns the list of available tool definitions for OpenAI function calling.
   """
-  def tool_definitions do
-    [
+  def tool_definitions(user) do
+    base_tools = [
       search_data_tool(),
-      search_contacts_tool(),
-      get_contact_details_tool(),
-      create_hubspot_contact_tool(),
-      update_hubspot_contact_tool(),
       send_email_tool(),
       search_calendar_tool(),
       get_email_details_tool(),
@@ -31,6 +27,22 @@ defmodule FinanceChatIntegration.Tools do
       list_instructions_tool(),
       delete_instruction_tool()
     ]
+
+    # Add HubSpot tools only if user has HubSpot connected
+    hubspot_tools =
+      if user.hubspot_access_token do
+        [
+          search_contacts_tool(),
+          get_contact_details_tool(),
+          create_hubspot_contact_tool(),
+          update_hubspot_contact_tool(),
+          create_hubspot_note_tool()
+        ]
+      else
+        []
+      end
+
+    base_tools ++ hubspot_tools
   end
 
   @doc """
@@ -53,6 +65,7 @@ defmodule FinanceChatIntegration.Tools do
       "create_instruction" -> execute_create_instruction(args, user)
       "list_instructions" -> execute_list_instructions(args, user)
       "delete_instruction" -> execute_delete_instruction(args, user)
+      "create_hubspot_note" -> execute_create_hubspot_note(args, user)
       _ -> {:error, "Unknown tool: #{tool_name}"}
     end
   end
@@ -777,6 +790,30 @@ defmodule FinanceChatIntegration.Tools do
     }
   end
 
+  defp create_hubspot_note_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "create_hubspot_note",
+        "description" => "Create a note for a HubSpot contact",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "contact_id" => %{
+              "type" => "string",
+              "description" => "The HubSpot contact ID to add the note to"
+            },
+            "note_body" => %{
+              "type" => "string",
+              "description" => "The content of the note"
+            }
+          },
+          "required" => ["contact_id", "note_body"]
+        }
+      }
+    }
+  end
+
   # Instruction execution functions
 
   defp execute_create_instruction(args, user) do
@@ -841,6 +878,27 @@ defmodule FinanceChatIntegration.Tools do
           {:error, changeset} ->
             {:error, "Failed to delete instruction: #{inspect(changeset.errors)}"}
         end
+    end
+  end
+
+  defp execute_create_hubspot_note(args, user) do
+    contact_id = args["contact_id"]
+    note_body = args["note_body"]
+
+    case Integrations.create_hubspot_contact_note(user, contact_id, note_body) do
+      {:ok, note} ->
+        {:ok,
+         %{
+           "success" => true,
+           "message" => "Note created successfully",
+           "note" => %{
+             "id" => note[:id],
+             "body" => note[:body]
+           }
+         }}
+
+      {:error, reason} ->
+        {:error, "Failed to create HubSpot note: #{inspect(reason)}"}
     end
   end
 

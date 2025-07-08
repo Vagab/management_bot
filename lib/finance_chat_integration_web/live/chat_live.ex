@@ -341,6 +341,7 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
   defp tool_progress_message("get_contact_details"), do: "Getting contact details..."
   defp tool_progress_message("create_hubspot_contact"), do: "Creating contact..."
   defp tool_progress_message("update_hubspot_contact"), do: "Updating contact..."
+  defp tool_progress_message("create_hubspot_note"), do: "Creating HubSpot note..."
   defp tool_progress_message("search_calendar"), do: "Checking calendar..."
   defp tool_progress_message("create_calendar_event"), do: "Creating calendar event..."
   defp tool_progress_message("search_data"), do: "Searching data..."

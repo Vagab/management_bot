@@ -158,10 +158,10 @@ defmodule FinanceChatIntegration.LLM do
     end)
   end
 
-  defp call_llm_with_tools(messages) do
+  defp call_llm_with_tools(messages, user) do
     Integrations.chat_completion(messages,
       model: @default_model,
-      tools: Tools.tool_definitions(),
+      tools: Tools.tool_definitions(user),
       temperature: 0.7
     )
   end
@@ -179,7 +179,7 @@ defmodule FinanceChatIntegration.LLM do
   defp process_llm_with_tools(messages, user, iteration) do
     Logger.info("LLM iteration #{iteration} for user #{user.id}")
 
-    case call_llm_with_tools(messages) do
+    case call_llm_with_tools(messages, user) do
       {:ok, response} ->
         process_llm_response(response, messages, user, iteration)
 
@@ -295,7 +295,7 @@ defmodule FinanceChatIntegration.LLM do
 
     case Integrations.chat_completion(messages,
            model: @default_model,
-           tools: Tools.tool_definitions(),
+           tools: Tools.tool_definitions(user),
            temperature: temperature
          ) do
       {:ok, response} ->
