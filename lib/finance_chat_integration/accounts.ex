@@ -60,6 +60,15 @@ defmodule FinanceChatIntegration.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc """
+  Returns the list of users who have OAuth tokens configured.
+  """
+  def list_users_with_tokens do
+    User
+    |> where([u], not is_nil(u.google_access_token) or not is_nil(u.hubspot_access_token))
+    |> Repo.all()
+  end
+
   ## User registration
 
   @doc """

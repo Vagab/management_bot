@@ -100,6 +100,21 @@ config :openai,
   organization_key: "org-75bBGm5nRd9dbhR7W2lXIwgk",
   http_options: [recv_timeout: :infinity]
 
+# Configure Oban for background jobs
+config :finance_chat_integration, Oban,
+  repo: FinanceChatIntegration.Repo,
+  plugins: [
+    Oban.Plugins.Pruner,
+    {Oban.Plugins.Cron,
+     crontab: [
+       # Run task orchestration every 5 minutes for all users
+       {"*/5 * * * *", FinanceChatIntegration.Workers.TaskOrchestrator}
+     ]}
+  ],
+  queues: [
+    task_orchestration: 2
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

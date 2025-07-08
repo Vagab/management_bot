@@ -78,6 +78,9 @@ defmodule FinanceChatIntegration.MixProject do
       {:google_api_gmail, "~> 0.17.0"},
       {:google_api_calendar, "~> 0.26.0"},
       {:goth, "~> 1.3"},
+
+      # Background jobs
+      {:oban, "~> 2.15"},
       {:tidewave, "~> 0.1", only: :dev}
     ]
   end

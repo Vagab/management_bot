@@ -8,7 +8,7 @@ defmodule FinanceChatIntegration.Tools do
   - Error handling and response formatting
   """
 
-  alias FinanceChatIntegration.{Integrations, Content.VectorSearch}
+  alias FinanceChatIntegration.{Integrations, Content.VectorSearch, TaskManagement}
 
   @doc """
   Returns the list of available tool definitions for OpenAI function calling.
@@ -23,7 +23,10 @@ defmodule FinanceChatIntegration.Tools do
       send_email_tool(),
       search_calendar_tool(),
       get_email_details_tool(),
-      create_calendar_event_tool()
+      create_calendar_event_tool(),
+      create_task_tool(),
+      update_task_status_tool(),
+      update_task_context_tool()
     ]
   end
 
@@ -41,6 +44,9 @@ defmodule FinanceChatIntegration.Tools do
       "search_calendar" -> execute_search_calendar(args, user)
       "get_email_details" -> execute_get_email_details(args, user)
       "create_calendar_event" -> execute_create_calendar_event(args, user)
+      "create_task" -> execute_create_task(args, user)
+      "update_task_status" -> execute_update_task_status(args, user)
+      "update_task_context" -> execute_update_task_context(args, user)
       _ -> {:error, "Unknown tool: #{tool_name}"}
     end
   end
@@ -310,6 +316,93 @@ defmodule FinanceChatIntegration.Tools do
     }
   end
 
+  defp create_task_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "create_task",
+        "description" =>
+          "Create a task for workflows that cannot be completed immediately. Use this when you need to: wait for email responses, wait for someone's availability confirmation, schedule something for the future, or perform multi-step processes that require external input. ALWAYS create a task if your workflow involves 'and then' steps that depend on external responses.",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "description" => %{
+              "type" => "string",
+              "description" => "Clear description of what needs to be done"
+            },
+            "reason" => %{
+              "type" => "string",
+              "description" =>
+                "Why this cannot be completed immediately. Examples: 'waiting for availability confirmation', 'need response about meeting time', 'requires external approval'"
+            },
+            "context" => %{
+              "type" => "object",
+              "description" => "Any relevant context data for task execution"
+            }
+          },
+          "required" => ["description", "reason"]
+        }
+      }
+    }
+  end
+
+  defp update_task_status_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "update_task_status",
+        "description" => "Update the status of a task",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "task_id" => %{
+              "type" => "integer",
+              "description" => "The ID of the task to update"
+            },
+            "status" => %{
+              "type" => "string",
+              "enum" => ["in_progress", "completed", "failed", "waiting"],
+              "description" => "The new status for the task"
+            },
+            "reason" => %{
+              "type" => "string",
+              "description" => "Reason for the status change"
+            }
+          },
+          "required" => ["task_id", "status", "reason"]
+        }
+      }
+    }
+  end
+
+  defp update_task_context_tool do
+    %{
+      "type" => "function",
+      "function" => %{
+        "name" => "update_task_context",
+        "description" => "Update the context of a task with new information",
+        "parameters" => %{
+          "type" => "object",
+          "properties" => %{
+            "task_id" => %{
+              "type" => "integer",
+              "description" => "The ID of the task to update"
+            },
+            "context_update" => %{
+              "type" => "object",
+              "description" => "New context data to merge with existing context"
+            },
+            "reason" => %{
+              "type" => "string",
+              "description" => "Reason for the context update"
+            }
+          },
+          "required" => ["task_id", "context_update", "reason"]
+        }
+      }
+    }
+  end
+
   # Tool Execution Functions
 
   defp execute_search_data(args, user) do
@@ -528,6 +621,95 @@ defmodule FinanceChatIntegration.Tools do
 
       {:error, reason} ->
         {:error, "Failed to create calendar event: #{inspect(reason)}"}
+    end
+  end
+
+  defp execute_create_task(args, user) do
+    description = args["description"]
+    reason = args["reason"]
+    context = args["context"] || %{}
+
+    # Add metadata to context
+    enhanced_context =
+      Map.merge(context, %{
+        "reason" => reason,
+        "created_by" => "llm_tool",
+        "created_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+      })
+
+    case TaskManagement.create_task(%{
+           user_id: user.id,
+           description: description,
+           status: :in_progress,
+           context: enhanced_context
+         }) do
+      {:ok, task} ->
+        {:ok,
+         %{
+           "status" => "success",
+           "message" => "Task created successfully",
+           "task" => %{
+             "id" => task.id,
+             "description" => task.description,
+             "status" => task.status,
+             "reason" => reason
+           }
+         }}
+
+      {:error, changeset} ->
+        {:error, "Failed to create task: #{inspect(changeset.errors)}"}
+    end
+  end
+
+  defp execute_update_task_status(args, user) do
+    task_id = args["task_id"]
+    status = String.to_existing_atom(args["status"])
+    reason = args["reason"]
+
+    case TaskManagement.get_task(user.id, task_id) do
+      nil ->
+        {:error, "Task #{task_id} not found"}
+
+      task ->
+        case TaskManagement.update_task(task, %{status: status}) do
+          {:ok, _updated_task} ->
+            {:ok,
+             %{
+               "status" => "success",
+               "message" => "Task #{task_id} status updated to #{status}",
+               "reason" => reason
+             }}
+
+          {:error, changeset} ->
+            {:error, "Failed to update task: #{inspect(changeset.errors)}"}
+        end
+    end
+  end
+
+  defp execute_update_task_context(args, user) do
+    task_id = args["task_id"]
+    context_update = args["context_update"]
+    reason = args["reason"]
+
+    case TaskManagement.get_task(user.id, task_id) do
+      nil ->
+        {:error, "Task #{task_id} not found"}
+
+      task ->
+        updated_context = Map.merge(task.context, context_update)
+
+        case TaskManagement.update_task(task, %{context: updated_context}) do
+          {:ok, _updated_task} ->
+            {:ok,
+             %{
+               "status" => "success",
+               "message" => "Task #{task_id} context updated",
+               "reason" => reason
+             }}
+
+          {:error, changeset} ->
+            {:error, "Failed to update task context: #{inspect(changeset.errors)}"}
+        end
     end
   end
 

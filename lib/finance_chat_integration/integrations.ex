@@ -253,10 +253,8 @@ defmodule FinanceChatIntegration.Integrations do
 
     params = if opts[:tools], do: Keyword.put(params, :tools, opts[:tools]), else: params
 
-    IO.inspect("sending open ai request with #{inspect(params)}")
-
     case OpenAI.chat_completion(params) do
-      {:ok, response} -> {:ok, response} |> IO.inspect(label: "AI response")
+      {:ok, response} -> {:ok, response} |> IO.inspect(label: "openai response")
       {:error, error} -> {:error, error}
     end
   end

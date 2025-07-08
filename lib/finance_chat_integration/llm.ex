@@ -15,7 +15,7 @@ defmodule FinanceChatIntegration.LLM do
   @default_model "gpt-4o-mini"
   @max_context_chunks 3
   @max_conversation_history 10
-  @max_tool_iterations 5
+  @max_tool_iterations 10
 
   @doc """
   Main chat interface that handles user messages with RAG and tool calling.
@@ -102,7 +102,15 @@ defmodule FinanceChatIntegration.LLM do
 
     You can use the available tools to search for more information, send emails, schedule meetings, and manage contacts. Always be helpful, professional, and accurate. When referencing information from the user's data, mention the source (email, contact, calendar).
 
-    If you need to perform actions like sending emails or scheduling meetings, use the appropriate tools. Always confirm important actions before executing them.
+    IMPORTANT: For workflows that cannot be completed immediately, you MUST create a task using the create_task tool. Examples of when to create tasks:
+    - "Send email and schedule meeting when they respond" - CREATE TASK (requires waiting for response)
+    - "Email someone and wait for their availability" - CREATE TASK (requires waiting for availability confirmation)
+    - "Follow up in 3 days" - CREATE TASK (requires waiting for time to pass)
+    - "Send welcome email to new leads" - CREATE TASK (ongoing instruction)
+
+    If your workflow has "and then" steps that depend on external responses or future timing, use create_task FIRST, then execute the immediate actions.
+
+    Always confirm important actions before executing them.
     """
 
     %{"role" => "system", "content" => content}

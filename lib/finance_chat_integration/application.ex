@@ -15,6 +15,8 @@ defmodule FinanceChatIntegration.Application do
       {Phoenix.PubSub, name: FinanceChatIntegration.PubSub},
       # Start the Finch HTTP client for sending emails
       {Finch, name: FinanceChatIntegration.Finch},
+      # Start Oban for background jobs
+      {Oban, Application.fetch_env!(:finance_chat_integration, Oban)},
       # Start a worker by calling: FinanceChatIntegration.Worker.start_link(arg)
       # {FinanceChatIntegration.Worker, arg},
       # Start to serve requests, typically the last entry
