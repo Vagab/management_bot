@@ -18,9 +18,12 @@ defmodule FinanceChatIntegrationWeb.Router do
   end
 
   scope "/", FinanceChatIntegrationWeb do
-    pipe_through :browser
+    pipe_through [:browser, :require_authenticated_user]
 
-    get "/", PageController, :home
+    live_session :root_redirect,
+      on_mount: [{FinanceChatIntegrationWeb.UserAuth, :ensure_authenticated}] do
+      live "/", ChatLive, :index
+    end
   end
 
   # OAuth routes

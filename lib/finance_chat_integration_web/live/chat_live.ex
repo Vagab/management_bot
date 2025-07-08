@@ -21,7 +21,8 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
      |> assign(:loading, false)
      |> assign(:progress_tool, nil)
      |> assign(:tasks, tasks)
-     |> assign(:show_tasks, true)}
+     |> assign(:show_tasks, true)
+     |> assign(:hubspot_connected, not is_nil(user.hubspot_access_token))}
   end
 
   def handle_event("send_message", %{"message" => message}, socket) do
@@ -151,8 +152,25 @@ defmodule FinanceChatIntegrationWeb.ChatLive do
         <!-- Main Chat Area -->
         <div class="flex-1 bg-white rounded-xl shadow-lg border border-gray-200">
           <div class="border-b border-gray-200 p-6">
-            <h1 class="text-2xl font-bold text-gray-800">Chat with AI Assistant</h1>
-            <p class="text-sm text-gray-500 mt-1">User: {@current_user.email}</p>
+            <div class="flex items-center justify-between">
+              <div>
+                <h1 class="text-2xl font-bold text-gray-800">Chat with AI Assistant</h1>
+                <p class="text-sm text-gray-500 mt-1">User: {@current_user.email}</p>
+              </div>
+              <%= unless @hubspot_connected do %>
+                <div class="flex items-center gap-4">
+                  <a
+                    href="/hubspot/connect"
+                    class="inline-flex items-center px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-lg hover:bg-orange-600 transition-colors"
+                  >
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                    </svg>
+                    Connect HubSpot
+                  </a>
+                </div>
+              <% end %>
+            </div>
           </div>
 
           <div

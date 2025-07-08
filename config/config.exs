@@ -88,8 +88,8 @@ config :finance_chat_integration, Oban,
     Oban.Plugins.Pruner,
     {Oban.Plugins.Cron,
      crontab: [
-       # Run task orchestration every hour for all users
-       {"0 * * * *", FinanceChatIntegration.Workers.TaskOrchestrator}
+       # Run task orchestration every 5 minutes for all users
+       {"*/5 * * * *", FinanceChatIntegration.Workers.TaskOrchestrator}
      ]}
   ],
   queues: [
