@@ -38,21 +38,21 @@ defmodule FinanceChatIntegrationWeb.HubspotController do
         # State is invalid or missing
         conn
         |> put_flash(:error, "Invalid session state. Please try connecting again.")
-        |> redirect(to: ~p"/users/settings")
+        |> redirect(to: ~p"/chat")
     end
   end
 
   def callback(conn, %{"error" => _error, "error_description" => desc}) do
     conn
     |> put_flash(:error, "HubSpot login failed: #{desc}")
-    |> redirect(to: ~p"/users/settings")
+    |> redirect(to: ~p"/chat")
   end
 
   # Handle malformed callback
   def callback(conn, _params) do
     conn
     |> put_flash(:error, "Invalid HubSpot callback parameters")
-    |> redirect(to: ~p"/users/settings")
+    |> redirect(to: ~p"/chat")
   end
 
   # --- Private Helper Functions ---
@@ -65,13 +65,13 @@ defmodule FinanceChatIntegrationWeb.HubspotController do
 
       conn
       |> put_flash(:info, "HubSpot account connected successfully!")
-      |> redirect(to: ~p"/users/settings")
+      |> redirect(to: ~p"/chat")
     rescue
       # If `get_token!` fails, it raises an error. We can rescue it.
       e in OAuth2.Error ->
         conn
         |> put_flash(:error, "Error retrieving HubSpot token: #{inspect(e.reason)}")
-        |> redirect(to: ~p"/users/settings")
+        |> redirect(to: ~p"/chat")
     end
   end
 
