@@ -13,8 +13,8 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
   alias FinanceChatIntegration.{
     Integrations,
     TaskManagement,
-    Tools,
-    Accounts
+    Accounts,
+    LLM
   }
 
   require Logger
@@ -36,13 +36,27 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
 
   defp orchestrate_tasks(user) do
     with {:ok, context} <- collect_context(user),
-         {:ok, llm_response} <- ask_llm_for_actions(context, user),
-         :ok <- execute_llm_actions(llm_response, user) do
-      Logger.info("Task orchestration completed for user #{user.id}")
-      :ok
+         {:ok, messages} <- build_llm_messages(context) do
+      Logger.info(
+        "Starting LLM processing for user #{user.id} with context: #{inspect_context_summary(context)}"
+      )
+
+      case LLM.process_with_tools(messages, user, temperature: 0.3) do
+        {:ok, final_response} ->
+          Logger.info("Task orchestration completed for user #{user.id}")
+          Logger.info("LLM final response: #{inspect(final_response)}")
+
+          # Log current task statuses after orchestration
+          log_task_statuses_after_orchestration(user)
+          :ok
+
+        {:error, reason} ->
+          Logger.error("Task orchestration failed for user #{user.id}: #{inspect(reason)}")
+          {:error, reason}
+      end
     else
       {:error, reason} ->
-        Logger.error("Task orchestration failed for user #{user.id}: #{inspect(reason)}")
+        Logger.error("Failed to prepare orchestration for user #{user.id}: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -87,9 +101,7 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
     end
   end
 
-  defp ask_llm_for_actions(context, user) do
-    Logger.info("Asking LLM for task actions for user #{user.id}")
-
+  defp build_llm_messages(context) do
     prompt = build_orchestration_prompt(context)
 
     messages = [
@@ -97,14 +109,7 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
       %{"role" => "user", "content" => prompt}
     ]
 
-    case Integrations.chat_completion(messages,
-           model: "gpt-4o-mini",
-           tools: get_task_management_tools(),
-           temperature: 0.3
-         ) do
-      {:ok, response} -> {:ok, response}
-      {:error, reason} -> {:error, reason}
-    end
+    {:ok, messages}
   end
 
   defp build_orchestration_prompt(context) do
@@ -117,15 +122,27 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
     Waiting tasks:
     #{format_tasks_list(context.waiting_tasks)}
 
-    New emails received in last 5 minutes:
+    New emails received in last 15 minutes:
     #{format_emails_list(context.new_emails)}
 
-    Review all tasks and recent activity. Determine what actions to take:
-    1. Are any waiting tasks ready to resume based on new emails?
-    2. Are any active tasks ready for the next step?
-    3. Should any tasks be completed or updated?
+    IMPORTANT: Review each task and determine its current state:
 
-    Use the available tools to take appropriate actions.
+    1. For ACTIVE tasks - check if they are actually finished:
+       - If the task objective has been met, use update_task_status to mark it as "completed"
+       - If work is still needed, continue with the next step
+       - If waiting for external response, change status to "waiting"
+
+    2. For WAITING tasks - check if they can now proceed:
+       - Review new emails to see if any are responses to waiting tasks
+       - If a relevant response is found, resume the task and take appropriate action
+       - If still waiting, leave status as "waiting"
+
+    3. ALWAYS update task status when appropriate:
+       - Use update_task_status with "completed" when task objectives are fully met
+       - Use update_task_context to record what was accomplished
+       - Don't leave completed tasks in "in_progress" status
+
+    Remember: A task should be marked "completed" as soon as its description/objective is fulfilled.
     """
   end
 
@@ -134,68 +151,55 @@ defmodule FinanceChatIntegration.Workers.TaskOrchestrator do
     You are a task orchestrator for a financial advisor's AI assistant. Your job is to manage and execute tasks that cannot be completed immediately.
 
     You have access to tools for:
-    - Updating task status and context
-    - Completing tasks
-    - Sending emails
-    - Creating calendar events
-    - Searching for information
+    - update_task_status: Change task status (in_progress, waiting, completed, failed)
+    - update_task_context: Add information about what was done
+    - send_email: Send emails via Gmail
+    - create_calendar_event: Create calendar events
+    - search_gmail, search_contacts, search_calendar: Find information
+    - All other available tools
 
-    Guidelines:
-    1. Only take action if there's a clear reason to do so
-    2. Update task context with your reasoning
-    3. Complete tasks when their objectives are met
-    4. Move tasks to 'waiting' status when waiting for external responses
-    5. Be conservative - don't take actions unless you're confident
+    CRITICAL TASK COMPLETION RULES:
+    1. ALWAYS mark tasks as "completed" when their objective is achieved
+    2. If a task says "Email John about meeting" and you send the email, mark it COMPLETED
+    3. If a task says "Schedule meeting with Sarah" and you create the calendar event, mark it COMPLETED
+    4. Don't leave successfully executed tasks in "in_progress" status
+    5. Update task context to record what was accomplished before marking complete
+
+    Task Status Guidelines:
+    - "in_progress": Task is actively being worked on
+    - "waiting": Task is waiting for external response (email reply, etc.)
+    - "completed": Task objective has been fully achieved
+    - "failed": Task cannot be completed due to errors
+
+    Be decisive about task completion - if the work is done, mark it done!
     """
   end
 
-  defp get_task_management_tools do
-    # Use all tools from Tools module (includes task management tools)
-    Tools.tool_definitions()
+  # Debugging helpers
+
+  defp inspect_context_summary(context) do
+    %{
+      active_tasks_count: length(context.active_tasks),
+      waiting_tasks_count: length(context.waiting_tasks),
+      new_emails_count: length(context.new_emails),
+      current_time: context.current_time
+    }
   end
 
-  defp execute_llm_actions(response, user) do
-    Logger.info("Executing LLM actions for user #{user.id}")
+  defp log_task_statuses_after_orchestration(user) do
+    in_progress = TaskManagement.list_tasks_by_status(user.id, :in_progress)
+    waiting = TaskManagement.list_tasks_by_status(user.id, :waiting)
+    completed = TaskManagement.list_tasks_by_status(user.id, :completed)
 
-    [choice | _] = response[:choices]
-    message = choice["message"]
+    Logger.info("Post-orchestration task counts for user #{user.id}:")
+    Logger.info("  In Progress: #{length(in_progress)}")
+    Logger.info("  Waiting: #{length(waiting)}")
+    Logger.info("  Completed: #{length(completed)}")
 
-    case get_in(message, ["tool_calls"]) do
-      nil ->
-        Logger.info("No tool calls requested by LLM for user #{user.id}")
-        :ok
-
-      tool_calls ->
-        Logger.info("Executing #{length(tool_calls)} tool calls for user #{user.id}")
-
-        Enum.each(tool_calls, fn tool_call ->
-          execute_tool_call(tool_call, user)
-        end)
-
-        :ok
-    end
-  end
-
-  defp execute_tool_call(tool_call, user) do
-    function_name = get_in(tool_call, ["function", "name"])
-    arguments_json = get_in(tool_call, ["function", "arguments"])
-
-    arguments =
-      case Jason.decode(arguments_json) do
-        {:ok, args} -> args
-        {:error, _} -> %{}
-      end
-
-    Logger.info("Executing tool: #{function_name} for user #{user.id}")
-
-    # Execute all tools through the Tools module
-    case Tools.execute_tool(function_name, arguments, user) do
-      {:ok, _result} ->
-        Logger.info("Tool #{function_name} executed successfully")
-
-      {:error, error} ->
-        Logger.error("Tool #{function_name} failed: #{inspect(error)}")
-    end
+    # Log details of non-completed tasks
+    Enum.each(in_progress ++ waiting, fn task ->
+      Logger.info("  Task ##{task.id} (#{task.status}): #{task.description}")
+    end)
   end
 
   # Formatting helpers

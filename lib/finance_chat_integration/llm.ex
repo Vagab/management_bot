@@ -250,6 +250,112 @@ defmodule FinanceChatIntegration.LLM do
     end)
   end
 
+  @doc """
+  Public function for recursive tool calling that can be reused by other modules.
+  Handles LLM conversation with tools, including recursive tool calling with limits.
+  """
+  def process_with_tools(messages, user, opts \\ []) do
+    temperature = Keyword.get(opts, :temperature, 0.7)
+    max_iterations = Keyword.get(opts, :max_iterations, @max_tool_iterations)
+
+    process_llm_with_tools_public(messages, user, 0, temperature, max_iterations)
+  end
+
+  defp process_llm_with_tools_public(_messages, user, iteration, _temperature, max_iterations)
+       when iteration >= max_iterations do
+    Logger.warning("Maximum tool iterations (#{max_iterations}) reached for user #{user.id}")
+
+    {:error, "Maximum tool calling iterations reached"}
+  end
+
+  defp process_llm_with_tools_public(messages, user, iteration, temperature, max_iterations) do
+    Logger.info("LLM iteration #{iteration} for user #{user.id}")
+
+    case Integrations.chat_completion(messages,
+           model: @default_model,
+           tools: Tools.tool_definitions(),
+           temperature: temperature
+         ) do
+      {:ok, response} ->
+        process_llm_response_public(
+          response,
+          messages,
+          user,
+          iteration,
+          temperature,
+          max_iterations
+        )
+
+      {:error, reason} ->
+        Logger.error("LLM call failed at iteration #{iteration}: #{inspect(reason)}")
+        {:error, reason}
+    end
+  end
+
+  defp process_llm_response_public(
+         response,
+         conversation_messages,
+         user,
+         iteration,
+         temperature,
+         max_iterations
+       ) do
+    [choice | _] = response[:choices]
+    message = choice["message"]
+
+    cond do
+      # LLM wants to call tools
+      tool_calls = get_in(message, ["tool_calls"]) ->
+        Logger.info("LLM requesting #{length(tool_calls)} tool calls at iteration #{iteration}")
+
+        execute_tools_and_continue_public(
+          tool_calls,
+          message,
+          conversation_messages,
+          user,
+          iteration,
+          temperature,
+          max_iterations
+        )
+
+      # LLM provided a direct response
+      content = get_in(message, ["content"]) ->
+        Logger.info("LLM provided final response at iteration #{iteration}")
+        {:ok, content}
+
+      true ->
+        Logger.error("Invalid LLM response format at iteration #{iteration}")
+        {:error, "Invalid LLM response format"}
+    end
+  end
+
+  defp execute_tools_and_continue_public(
+         tool_calls,
+         assistant_message,
+         conversation_messages,
+         user,
+         iteration,
+         temperature,
+         max_iterations
+       ) do
+    # Execute all tool calls
+    tool_results = execute_tool_calls(tool_calls, user)
+
+    # Build messages for the next LLM call - KEEP FULL CONVERSATION CONTEXT
+    updated_messages =
+      conversation_messages ++
+        [assistant_message | tool_results]
+
+    # Recursively call LLM with updated conversation context
+    process_llm_with_tools_public(
+      updated_messages,
+      user,
+      iteration + 1,
+      temperature,
+      max_iterations
+    )
+  end
+
   defp save_conversation(user, assistant_response) do
     # Save assistant response
     Chat.create_chat_message(%{
